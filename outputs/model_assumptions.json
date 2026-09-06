@@ -1,0 +1,41 @@
+{
+  "demand_scenario": {
+    "name": "baseline_discrete_demand",
+    "values": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6
+    ],
+    "probabilities": [
+      0.05,
+      0.1,
+      0.2,
+      0.25,
+      0.2,
+      0.12,
+      0.08
+    ]
+  },
+  "cost_parameters": {
+    "order_fixed_cost": 30.0,
+    "order_unit_cost": 2.0,
+    "holding_cost": 1.0,
+    "shortage_cost": 8.0
+  },
+  "inventory_system": {
+    "review_period": "daily",
+    "lead_time": 0,
+    "shortage_treatment": "lost sales",
+    "number_of_products": 1
+  },
+  "simulation": {
+    "periods_per_replication": 365,
+    "replications_per_policy": 200,
+    "base_seed": 42,
+    "comparison_design": "common random numbers across policies"
+  }
+}
