@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="820" height="420" viewBox="0 0 820 420">
+<rect width="100%" height="100%" fill="#fbfaf7"/>
+<style>
+text { font-family: Arial, sans-serif; fill: #243044; }
+.title { font-size: 22px; font-weight: 700; }
+.label { font-size: 13px; }
+.tick { font-size: 11px; fill: #607086; }
+.annotation { font-size: 12px; fill: #344256; }
+</style>
+
+<text x="180" y="38" class="title">Sensitivity of the Recommended Policy to Cost Assumptions</text>
+<text x="200" y="72" class="annotation">Shortage cost = 4</text><text x="350" y="72" class="annotation">Shortage cost = 8</text><text x="500" y="72" class="annotation">Shortage cost = 16</text>
+<text x="28" y="126" class="annotation">Holding cost = 0.5</text><text x="28" y="198" class="annotation">Holding cost = 1</text><text x="28" y="270" class="annotation">Holding cost = 2</text>
+<rect x="180" y="90" width="142" height="64" fill="#e9eff6" stroke="#c7d2df"/><text x="194" y="117" class="annotation">Policy (1, 12)</text><text x="194" y="137" class="tick">Cost 16.54 | Stockout 10.7%</text><rect x="330" y="90" width="142" height="64" fill="#e9eff6" stroke="#c7d2df"/><text x="344" y="117" class="annotation">Policy (1, 12)</text><text x="344" y="137" class="tick">Cost 17.30 | Stockout 10.7%</text><rect x="480" y="90" width="142" height="64" fill="#e9eff6" stroke="#c7d2df"/><text x="494" y="117" class="annotation">Policy (2, 12)</text><text x="494" y="137" class="tick">Cost 18.29 | Stockout 5.9%</text><rect x="180" y="162" width="142" height="64" fill="#e9eff6" stroke="#c7d2df"/><text x="194" y="189" class="annotation">Policy (1, 12)</text><text x="194" y="209" class="tick">Cost 18.89 | Stockout 10.7%</text><rect x="330" y="162" width="142" height="64" fill="#e9eff6" stroke="#c7d2df"/><text x="344" y="189" class="annotation">Policy (1, 12)</text><text x="344" y="209" class="tick">Cost 19.66 | Stockout 10.7%</text><rect x="480" y="162" width="142" height="64" fill="#e9eff6" stroke="#c7d2df"/><text x="494" y="189" class="annotation">Policy (2, 12)</text><text x="494" y="209" class="tick">Cost 20.84 | Stockout 5.9%</text><rect x="180" y="234" width="142" height="64" fill="#e9eff6" stroke="#c7d2df"/><text x="194" y="261" class="annotation">Policy (1, 10)</text><text x="194" y="281" class="tick">Cost 23.19 | Stockout 12.6%</text><rect x="330" y="234" width="142" height="64" fill="#e9eff6" stroke="#c7d2df"/><text x="344" y="261" class="annotation">Policy (1, 10)</text><text x="344" y="281" class="tick">Cost 24.08 | Stockout 12.6%</text><rect x="480" y="234" width="142" height="64" fill="#e9eff6" stroke="#c7d2df"/><text x="494" y="261" class="annotation">Policy (1, 11)</text><text x="494" y="281" class="tick">Cost 25.81 | Stockout 11.6%</text>
+<text x="180" y="370" class="tick">Each cell reports the lowest-cost policy in the baseline policy grid.</text>
+
+</svg>
