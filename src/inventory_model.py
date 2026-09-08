@@ -23,6 +23,14 @@ import pandas as pd
 ROOT = Path(__file__).resolve().parents[1]
 OUTPUT_DIR = ROOT / "outputs"
 FIGURE_DIR = OUTPUT_DIR / "figures"
+SERVICE_FILL_RATE_TARGET = 0.97
+CASE_STUDY = {
+    "business": "UK ecommerce fulfilment centre",
+    "product_category": "consumer electronics accessories",
+    "sku": "standard USB-C charging cable",
+    "replenishment_source": "nearby central warehouse",
+    "data_status": "illustrative scenario; not calibrated to company data",
+}
 
 
 @dataclass(frozen=True)
@@ -126,18 +134,21 @@ def daily_outcome(
 def simulate_policy(
     policy: Policy,
     periods: int = 365,
+    warmup_periods: int = 0,
     starting_inventory: int | None = None,
     demand_scenario: DemandScenario = BASELINE_DEMAND,
     costs: CostParameters = BASELINE_COSTS,
     seed: int = 42,
 ) -> pd.DataFrame:
-    """Simulate daily operations under an (s, S) policy with a fixed random seed."""
+    """Simulate measured operations after an optional unreported warm-up period."""
 
     policy.validate()
     costs.validate()
     demand_values, demand_probabilities = demand_scenario.arrays()
     if periods <= 0:
         raise ValueError("The number of periods must be positive.")
+    if warmup_periods < 0:
+        raise ValueError("The number of warm-up periods must be non-negative.")
 
     inventory = policy.order_up_to if starting_inventory is None else starting_inventory
     if inventory < 0:
@@ -145,12 +156,16 @@ def simulate_policy(
 
     rng = np.random.default_rng(seed)
     records: list[dict[str, float]] = []
-    for day in range(1, periods + 1):
+    for simulation_day in range(1, periods + warmup_periods + 1):
         opening_inventory = inventory
         demand = int(rng.choice(demand_values, p=demand_probabilities))
         outcome = daily_outcome(opening_inventory, demand, policy, costs)
         inventory = int(outcome["ending_inventory"])
-        records.append({"day": day, "opening_inventory": opening_inventory, "demand": demand, **outcome})
+        if simulation_day > warmup_periods:
+            measured_day = simulation_day - warmup_periods
+            records.append(
+                {"day": measured_day, "opening_inventory": opening_inventory, "demand": demand, **outcome}
+            )
 
     return pd.DataFrame.from_records(records)
 
@@ -278,6 +293,7 @@ def evaluate_policies(
     policies: list[Policy],
     replications: int = 200,
     periods: int = 365,
+    warmup_periods: int = 365,
     demand_scenario: DemandScenario = BASELINE_DEMAND,
     costs: CostParameters = BASELINE_COSTS,
     seed: int = 42,
@@ -299,6 +315,7 @@ def evaluate_policies(
                 simulate_policy(
                     policy=policy,
                     periods=periods,
+                    warmup_periods=warmup_periods,
                     demand_scenario=demand_scenario,
                     costs=costs,
                     seed=seed + replication,
@@ -351,6 +368,48 @@ def policy_grid(minimum_s: int = 1, maximum_s: int = 6, maximum_S: int = 12) -> 
         for s in range(minimum_s, maximum_s + 1)
         for S in range(s + 2, maximum_S + 1)
     ]
+
+
+def select_policy(summary: pd.DataFrame, minimum_fill_rate: float | None = None) -> pd.Series:
+    """Select the lowest-cost policy, optionally subject to a fill-rate target."""
+
+    required_columns = {"average_daily_cost", "stockout_rate", "fill_rate", "s", "S"}
+    missing_columns = required_columns.difference(summary.columns)
+    if missing_columns:
+        raise ValueError(f"Policy summary is missing columns: {sorted(missing_columns)}")
+    if minimum_fill_rate is not None and not 0 <= minimum_fill_rate <= 1:
+        raise ValueError("The minimum fill rate must be between zero and one.")
+
+    feasible = summary
+    if minimum_fill_rate is not None:
+        feasible = summary.loc[summary["fill_rate"] >= minimum_fill_rate]
+    if feasible.empty:
+        raise ValueError("No policy satisfies the requested fill-rate constraint.")
+    return feasible.sort_values(["average_daily_cost", "stockout_rate", "s", "S"]).iloc[0]
+
+
+def pareto_frontier(summary: pd.DataFrame) -> pd.DataFrame:
+    """Return policies not dominated on both expected cost and stockout rate."""
+
+    required_columns = {"average_daily_cost", "stockout_rate"}
+    missing_columns = required_columns.difference(summary.columns)
+    if missing_columns:
+        raise ValueError(f"Policy summary is missing columns: {sorted(missing_columns)}")
+
+    frontier_indices: list[int] = []
+    for index, candidate in summary.iterrows():
+        no_more_costly = summary["average_daily_cost"] <= candidate["average_daily_cost"]
+        no_more_stockouts = summary["stockout_rate"] <= candidate["stockout_rate"]
+        strictly_better = (
+            (summary["average_daily_cost"] < candidate["average_daily_cost"])
+            | (summary["stockout_rate"] < candidate["stockout_rate"])
+        )
+        if not bool((no_more_costly & no_more_stockouts & strictly_better).any()):
+            frontier_indices.append(index)
+
+    return summary.loc[frontier_indices].sort_values(
+        ["average_daily_cost", "stockout_rate"], ignore_index=True
+    )
 
 
 def sensitivity_analysis(
@@ -410,7 +469,7 @@ text {{ font-family: Arial, sans-serif; fill: #243044; }}
     path.write_text(svg, encoding="utf-8")
 
 
-def plot_inventory_path(example: pd.DataFrame) -> None:
+def plot_inventory_path(example: pd.DataFrame, policy: Policy) -> None:
     """Plot daily demand bars and ending inventory for a representative trace."""
 
     width, height = 920, 520
@@ -419,6 +478,8 @@ def plot_inventory_path(example: pd.DataFrame) -> None:
     y_max = float(max(example["ending_inventory"].max(), example["demand"].max())) + 1
     points: list[str] = []
     bars: list[str] = []
+    x_ticks: list[str] = []
+    y_ticks: list[str] = []
 
     for _, row in example.iterrows():
         x = _scale(float(row["day"]), x_min, x_max, left, width - right)
@@ -429,10 +490,21 @@ def plot_inventory_path(example: pd.DataFrame) -> None:
             f'<rect x="{x - 3:.1f}" y="{demand_y:.1f}" width="6" height="{height - bottom - demand_y:.1f}" fill="#d8aa4f" opacity="0.32"/>'
         )
 
+    for value in np.linspace(x_min, x_max, 7):
+        x = _scale(float(value), x_min, x_max, left, width - right)
+        x_ticks.append(f'<line x1="{x:.1f}" y1="{height-bottom}" x2="{x:.1f}" y2="{height-bottom+6}" stroke="#7b8797"/>')
+        x_ticks.append(f'<text x="{x-8:.1f}" y="{height-bottom+22}" class="tick">{value:.0f}</text>')
+    for value in range(0, int(y_max) + 1, 2):
+        y = _scale(float(value), 0, y_max, height - bottom, top)
+        y_ticks.append(f'<line x1="{left}" y1="{y:.1f}" x2="{width-right}" y2="{y:.1f}" stroke="#dfe4ea"/>')
+        y_ticks.append(f'<text x="{left-26}" y="{y+4:.1f}" class="tick">{value}</text>')
+
     body = f"""
-<text x="{left}" y="36" class="title">Inventory Level and Daily Demand Under Baseline Policy (3, 8)</text>
+<text x="{left}" y="36" class="title">Inventory and Demand Under Cost-Optimal Policy ({policy.reorder_point}, {policy.order_up_to})</text>
+{''.join(y_ticks)}
 <line x1="{left}" y1="{height-bottom}" x2="{width-right}" y2="{height-bottom}" stroke="#9aa7b8"/>
 <line x1="{left}" y1="{top}" x2="{left}" y2="{height-bottom}" stroke="#9aa7b8"/>
+{''.join(x_ticks)}
 {''.join(bars)}
 <polyline points="{' '.join(points)}" fill="none" stroke="#334155" stroke-width="3"/>
 <text x="{width / 2 - 22}" y="{height - 24}" class="label">Day</text>
@@ -448,7 +520,7 @@ def plot_inventory_path(example: pd.DataFrame) -> None:
 def plot_policy_comparison(summary: pd.DataFrame) -> None:
     """Plot exact long-run daily cost for every tested (s, S) combination."""
 
-    width, height = 920, 560
+    width, height = 780, 480
     left, top, cell_width, cell_height = 90, 80, 58, 46
     pivot = summary.pivot(index="s", columns="S", values="average_daily_cost")
     minimum_cost = float(pivot.min().min())
@@ -484,14 +556,13 @@ def plot_policy_comparison(summary: pd.DataFrame) -> None:
     )
     body = f"""
 <text x="{left}" y="38" class="title">Exact Long-Run Average Daily Cost Across (s, S) Policies</text>
-<text x="{left + 250}" y="532" class="label">Order-up-to level S</text>
+<text x="{left + 220}" y="386" class="label">Order-up-to level S</text>
 <text x="26" y="285" class="label" transform="rotate(-90 26,285)">Reorder point s</text>
 {x_labels}
 {y_labels}
 {''.join(cells)}
-<text x="650" y="96" class="annotation">Gold outline: recommended policy ({int(best['s'])}, {int(best['S'])}).</text>
-<text x="650" y="118" class="annotation">Darker cells indicate lower cost.</text>
-<text x="650" y="140" class="annotation">Blank cells are infeasible where S is not larger than s.</text>
+<text x="{left}" y="420" class="annotation">Gold outline: cost-optimal policy ({int(best['s'])}, {int(best['S'])}). Darker cells indicate lower cost.</text>
+<text x="{left}" y="442" class="tick">Blank cells are excluded by the search rule S &gt;= s + 2.</text>
 """
     _write_svg(FIGURE_DIR / "policy_cost_heatmap.svg", body, width, height)
 
@@ -506,6 +577,8 @@ def plot_tradeoff(summary: pd.DataFrame) -> None:
     cost_min, cost_max = float(summary["average_daily_cost"].min()), float(summary["average_daily_cost"].max())
     best = summary.iloc[0]
     circles: list[str] = []
+    x_ticks: list[str] = []
+    y_ticks: list[str] = []
 
     for _, row in summary.iterrows():
         x = _scale(float(row["average_ending_inventory"]), x_min, x_max, left, width - right)
@@ -517,10 +590,21 @@ def plot_tradeoff(summary: pd.DataFrame) -> None:
             f'<circle cx="{x:.1f}" cy="{y:.1f}" r="{radius}" fill="hsl(18, 70%, {lightness:.0f}%)" stroke="{stroke}" stroke-width="3" opacity="0.85"/>'
         )
 
+    for value in np.linspace(x_min, x_max, 6):
+        x = _scale(float(value), x_min, x_max, left, width - right)
+        x_ticks.append(f'<line x1="{x:.1f}" y1="{height-bottom}" x2="{x:.1f}" y2="{height-bottom+6}" stroke="#7b8797"/>')
+        x_ticks.append(f'<text x="{x-10:.1f}" y="{height-bottom+24}" class="tick">{value:.1f}</text>')
+    for value in np.linspace(y_min, y_max, 6):
+        y = _scale(float(value), y_min, y_max, height - bottom, top)
+        y_ticks.append(f'<line x1="{left-6}" y1="{y:.1f}" x2="{left}" y2="{y:.1f}" stroke="#7b8797"/>')
+        y_ticks.append(f'<text x="{left-48}" y="{y+4:.1f}" class="tick">{value:.0%}</text>')
+
     body = f"""
 <text x="{left}" y="38" class="title">Trade-off Between Inventory Holding and Stockout Risk</text>
+{''.join(y_ticks)}
 <line x1="{left}" y1="{height-bottom}" x2="{width-right}" y2="{height-bottom}" stroke="#9aa7b8"/>
 <line x1="{left}" y1="{top}" x2="{left}" y2="{height-bottom}" stroke="#9aa7b8"/>
+{''.join(x_ticks)}
 {''.join(circles)}
 <text x="{width / 2 - 80}" y="{height - 26}" class="label">Average ending inventory</text>
 <text x="18" y="{height / 2}" class="label" transform="rotate(-90 18,{height / 2})">Stockout rate</text>
@@ -528,6 +612,69 @@ def plot_tradeoff(summary: pd.DataFrame) -> None:
 <text x="510" y="114" class="annotation">Gold outline: recommended policy.</text>
 """
     _write_svg(FIGURE_DIR / "inventory_stockout_tradeoff.svg", body, width, height)
+
+
+def plot_service_frontier(
+    summary: pd.DataFrame,
+    frontier: pd.DataFrame,
+    cost_optimum: pd.Series,
+    service_policy: pd.Series,
+) -> None:
+    """Plot the non-dominated cost-stockout frontier and two decision rules."""
+
+    width, height = 900, 560
+    left, right, top, bottom = 90, 55, 75, 85
+    x_min = float(summary["average_daily_cost"].min()) - 0.3
+    x_max = float(summary["average_daily_cost"].max()) + 0.3
+    y_min = 0.0
+    y_max = float(summary["stockout_rate"].max()) * 1.08
+
+    def coordinates(row: pd.Series) -> tuple[float, float]:
+        return (
+            _scale(float(row["average_daily_cost"]), x_min, x_max, left, width - right),
+            _scale(float(row["stockout_rate"]), y_min, y_max, height - bottom, top),
+        )
+
+    all_points = "".join(
+        f'<circle cx="{coordinates(row)[0]:.1f}" cy="{coordinates(row)[1]:.1f}" r="4" fill="#a8b3c2" opacity="0.55"/>'
+        for _, row in summary.iterrows()
+    )
+    ordered_frontier = frontier.sort_values("average_daily_cost")
+    frontier_points = " ".join(
+        f"{coordinates(row)[0]:.1f},{coordinates(row)[1]:.1f}"
+        for _, row in ordered_frontier.iterrows()
+    )
+    cost_x, cost_y = coordinates(cost_optimum)
+    service_x, service_y = coordinates(service_policy)
+
+    x_ticks: list[str] = []
+    y_ticks: list[str] = []
+    for value in np.linspace(x_min, x_max, 6):
+        x = _scale(float(value), x_min, x_max, left, width - right)
+        x_ticks.append(f'<line x1="{x:.1f}" y1="{height-bottom}" x2="{x:.1f}" y2="{height-bottom+6}" stroke="#7b8797"/>')
+        x_ticks.append(f'<text x="{x-13:.1f}" y="{height-bottom+24}" class="tick">{value:.1f}</text>')
+    for value in np.linspace(y_min, y_max, 6):
+        y = _scale(float(value), y_min, y_max, height - bottom, top)
+        y_ticks.append(f'<line x1="{left-6}" y1="{y:.1f}" x2="{left}" y2="{y:.1f}" stroke="#7b8797"/>')
+        y_ticks.append(f'<text x="{left-48}" y="{y+4:.1f}" class="tick">{value:.0%}</text>')
+
+    body = f"""
+<text x="{left}" y="38" class="title">Cost-Service Pareto Frontier</text>
+<text x="{left}" y="59" class="tick">Every point is a tested (s, S) policy; the line joins non-dominated choices.</text>
+<line x1="{left}" y1="{height-bottom}" x2="{width-right}" y2="{height-bottom}" stroke="#7b8797"/>
+<line x1="{left}" y1="{top}" x2="{left}" y2="{height-bottom}" stroke="#7b8797"/>
+{''.join(x_ticks)}
+{''.join(y_ticks)}
+{all_points}
+<polyline points="{frontier_points}" fill="none" stroke="#117c75" stroke-width="3"/>
+<circle cx="{cost_x:.1f}" cy="{cost_y:.1f}" r="8" fill="#d7a43b" stroke="#243044" stroke-width="2"/>
+<circle cx="{service_x:.1f}" cy="{service_y:.1f}" r="8" fill="#d95d4f" stroke="#243044" stroke-width="2"/>
+<text x="{cost_x+12:.1f}" y="{cost_y-8:.1f}" class="annotation">Cost optimum ({int(cost_optimum['s'])}, {int(cost_optimum['S'])})</text>
+<text x="{service_x+12:.1f}" y="{service_y+20:.1f}" class="annotation">97% fill-rate choice ({int(service_policy['s'])}, {int(service_policy['S'])})</text>
+<text x="{width/2-95}" y="{height-28}" class="label">Expected daily cost</text>
+<text x="20" y="{height/2}" class="label" transform="rotate(-90 20,{height/2})">Stockout probability</text>
+"""
+    _write_svg(FIGURE_DIR / "cost_service_frontier.svg", body, width, height)
 
 
 def plot_sensitivity(sensitivity: pd.DataFrame) -> None:
@@ -569,34 +716,60 @@ def plot_sensitivity(sensitivity: pd.DataFrame) -> None:
     _write_svg(FIGURE_DIR / "cost_sensitivity.svg", body, width, height)
 
 
-def write_run_summary(summary: pd.DataFrame, sensitivity: pd.DataFrame, periods: int, replications: int) -> None:
+def write_run_summary(
+    summary: pd.DataFrame,
+    sensitivity: pd.DataFrame,
+    cost_optimum: pd.Series,
+    service_policy: pd.Series,
+    periods: int,
+    replications: int,
+    warmup_periods: int,
+) -> None:
     """Write a concise, GitHub-renderable interpretation of the latest run."""
 
-    best = summary.iloc[0]
     closest_service_policy = summary.loc[summary["stockout_rate"].idxmin()]
+    incremental_cost = service_policy["average_daily_cost"] - cost_optimum["average_daily_cost"]
+    incremental_cost_rate = incremental_cost / cost_optimum["average_daily_cost"]
+    exact_inside_interval = (
+        cost_optimum["simulation_cost_95_ci_low"]
+        <= cost_optimum["average_daily_cost"]
+        <= cost_optimum["simulation_cost_95_ci_high"]
+    )
     sensitivity_lines = "\n".join(
         f"| {row.holding_cost:g} | {row.shortage_cost:g} | ({int(row.best_s)}, {int(row.best_S)}) | {row.best_average_daily_cost:.2f} | {row.best_stockout_rate:.2%} |"
         for row in sensitivity.itertuples(index=False)
     )
     content = f"""# Analysis Run Summary
 
-This file is generated by `python3 src/inventory_model.py`. It records the exact Markov-chain result and the Monte Carlo validation used in the report.
+This file is generated by `python3 src/inventory_model.py`. It records the exact Markov-chain result, warm-up-adjusted Monte Carlo validation, and decision rules used in the report.
 
-## Baseline Recommendation
+## Case and Decision Question
 
-The lowest-cost policy in the tested grid is **({int(best['s'])}, {int(best['S'])})**.
+The illustrative case is a UK ecommerce fulfilment centre replenishing one standard USB-C charging cable SKU from a nearby central warehouse. The inputs are transparent teaching assumptions, not company observations.
+
+The program answers two different questions: which tested policy has the lowest expected cost, and which has the lowest cost while achieving at least a {SERVICE_FILL_RATE_TARGET:.0%} fill rate?
+
+## Cost-Optimal Policy
+
+The lowest-cost policy in the tested grid is **({int(cost_optimum['s'])}, {int(cost_optimum['S'])})**.
 
 | Metric | Exact Markov result | Monte Carlo validation |
 | --- | ---: | ---: |
-| Average daily cost | {best['average_daily_cost']:.2f} | {best['simulation_average_daily_cost']:.2f} |
-| 95% CI for simulated cost | - | [{best['simulation_cost_95_ci_low']:.2f}, {best['simulation_cost_95_ci_high']:.2f}] |
-| Stockout rate | {best['stockout_rate']:.2%} | {best['simulation_stockout_rate']:.2%} |
-| Fill rate | {best['fill_rate']:.2%} | {best['simulation_fill_rate']:.2%} |
-| Average ending inventory | {best['average_ending_inventory']:.2f} | {best['simulation_average_ending_inventory']:.2f} |
+| Average daily cost | {cost_optimum['average_daily_cost']:.2f} | {cost_optimum['simulation_average_daily_cost']:.2f} |
+| 95% CI for simulated cost | - | [{cost_optimum['simulation_cost_95_ci_low']:.2f}, {cost_optimum['simulation_cost_95_ci_high']:.2f}] |
+| Stockout rate | {cost_optimum['stockout_rate']:.2%} | {cost_optimum['simulation_stockout_rate']:.2%} |
+| Fill rate | {cost_optimum['fill_rate']:.2%} | {cost_optimum['simulation_fill_rate']:.2%} |
+| Average ending inventory | {cost_optimum['average_ending_inventory']:.2f} | {cost_optimum['simulation_average_ending_inventory']:.2f} |
 
-The simulation uses {replications} independent replications of {periods} days each. Its average-cost estimate differs from the Markov result by {best['absolute_cost_gap']:.3f} currency units per day, providing a direct reproducibility check.
+Each simulation replication discards {warmup_periods} warm-up days before measuring {periods} days. Across {replications} replications, the exact Markov cost {'falls inside' if exact_inside_interval else 'does not fall inside'} the simulated 95% interval. The absolute difference between the two estimates is {cost_optimum['absolute_cost_gap']:.3f} currency units per day.
 
 The lowest-stockout policy in the tested grid is ({int(closest_service_policy['s'])}, {int(closest_service_policy['S'])}); it has a {closest_service_policy['stockout_rate']:.2%} stockout rate but a higher average daily cost of {closest_service_policy['average_daily_cost']:.2f}. This makes the cost-service trade-off explicit rather than treating the low-cost choice as universally best.
+
+## Service-Constrained Policy
+
+Among policies with a fill rate of at least {SERVICE_FILL_RATE_TARGET:.0%}, the lowest-cost choice is **({int(service_policy['s'])}, {int(service_policy['S'])})**. Its exact daily cost is {service_policy['average_daily_cost']:.2f}, fill rate is {service_policy['fill_rate']:.2%}, and stockout rate is {service_policy['stockout_rate']:.2%}.
+
+Compared with the unconstrained minimum, this choice costs {incremental_cost:.2f} more per day ({incremental_cost_rate:.2%}) while reducing the stockout rate by {(cost_optimum['stockout_rate'] - service_policy['stockout_rate']) * 100:.2f} percentage points. This is the stronger operational recommendation when a 97% fill-rate promise is non-negotiable.
 
 ## Cost Sensitivity
 
@@ -612,6 +785,12 @@ def parse_arguments() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Run the stochastic (s, S) inventory analysis.")
     parser.add_argument("--periods", type=int, default=365, help="Days in each simulation replication.")
     parser.add_argument("--replications", type=int, default=200, help="Monte Carlo replications per policy.")
+    parser.add_argument(
+        "--warmup-periods",
+        type=int,
+        default=365,
+        help="Unreported simulation days discarded before each measured replication.",
+    )
     parser.add_argument("--seed", type=int, default=42, help="Base random seed for reproducibility.")
     return parser.parse_args()
 
@@ -623,21 +802,50 @@ def main() -> None:
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     FIGURE_DIR.mkdir(parents=True, exist_ok=True)
 
-    baseline_policy = Policy(reorder_point=3, order_up_to=8)
-    baseline_trace = simulate_policy(policy=baseline_policy, periods=90, seed=7)
     policies = policy_grid()
     summary = evaluate_policies(
         policies,
         replications=arguments.replications,
         periods=arguments.periods,
+        warmup_periods=arguments.warmup_periods,
         seed=arguments.seed,
     )
     sensitivity = sensitivity_analysis(policies)
+    cost_optimum = select_policy(summary)
+    service_policy = select_policy(summary, minimum_fill_rate=SERVICE_FILL_RATE_TARGET)
+    frontier = pareto_frontier(summary)
+    recommended_policy = Policy(int(cost_optimum["s"]), int(cost_optimum["S"]))
+    baseline_trace = simulate_policy(
+        policy=recommended_policy,
+        periods=90,
+        warmup_periods=arguments.warmup_periods,
+        seed=7,
+    )
+    incremental_cost = service_policy["average_daily_cost"] - cost_optimum["average_daily_cost"]
+    decision_summary = pd.DataFrame(
+        [
+            {
+                "decision_rule": "minimum expected daily cost",
+                "minimum_fill_rate": 0.0,
+                **cost_optimum.to_dict(),
+                "incremental_cost_vs_unconstrained": 0.0,
+            },
+            {
+                "decision_rule": f"minimum cost with fill rate >= {SERVICE_FILL_RATE_TARGET:.0%}",
+                "minimum_fill_rate": SERVICE_FILL_RATE_TARGET,
+                **service_policy.to_dict(),
+                "incremental_cost_vs_unconstrained": incremental_cost,
+            },
+        ]
+    )
 
     baseline_trace.to_csv(OUTPUT_DIR / "baseline_simulation_trace.csv", index=False)
     summary.to_csv(OUTPUT_DIR / "policy_evaluation_summary.csv", index=False)
     sensitivity.to_csv(OUTPUT_DIR / "cost_sensitivity_summary.csv", index=False)
+    decision_summary.to_csv(OUTPUT_DIR / "service_level_policy_summary.csv", index=False)
+    frontier.to_csv(OUTPUT_DIR / "policy_pareto_frontier.csv", index=False)
     assumptions = {
+        "case_study": CASE_STUDY,
         "demand_scenario": asdict(BASELINE_DEMAND),
         "cost_parameters": asdict(BASELINE_COSTS),
         "inventory_system": {
@@ -648,25 +856,46 @@ def main() -> None:
         },
         "simulation": {
             "periods_per_replication": arguments.periods,
+            "warmup_periods_per_replication": arguments.warmup_periods,
             "replications_per_policy": arguments.replications,
             "base_seed": arguments.seed,
             "comparison_design": "common random numbers across policies",
         },
+        "optimisation": {
+            "method": "exhaustive enumeration over a finite policy grid",
+            "objective": "minimise exact long-run expected daily cost",
+            "reorder_points": list(range(1, 7)),
+            "order_up_to_rule": "S ranges from s + 2 through 12",
+            "tested_policy_count": len(policies),
+            "service_fill_rate_target": SERVICE_FILL_RATE_TARGET,
+        },
     }
     (OUTPUT_DIR / "model_assumptions.json").write_text(json.dumps(assumptions, indent=2), encoding="utf-8")
 
-    plot_inventory_path(baseline_trace)
+    plot_inventory_path(baseline_trace, recommended_policy)
     plot_policy_comparison(summary)
     plot_tradeoff(summary)
+    plot_service_frontier(summary, frontier, cost_optimum, service_policy)
     plot_sensitivity(sensitivity)
-    write_run_summary(summary, sensitivity, arguments.periods, arguments.replications)
+    write_run_summary(
+        summary,
+        sensitivity,
+        cost_optimum,
+        service_policy,
+        arguments.periods,
+        arguments.replications,
+        arguments.warmup_periods,
+    )
 
-    best = summary.iloc[0]
     print("Baseline analysis complete")
-    print(f"Recommended policy: s = {int(best['s'])}, S = {int(best['S'])}")
-    print(f"Exact average daily cost: {best['average_daily_cost']:.2f}")
-    print(f"Exact stockout rate: {best['stockout_rate']:.2%}")
-    print(f"Simulation average daily cost: {best['simulation_average_daily_cost']:.2f}")
+    print(f"Cost-optimal policy: s = {int(cost_optimum['s'])}, S = {int(cost_optimum['S'])}")
+    print(f"Exact average daily cost: {cost_optimum['average_daily_cost']:.2f}")
+    print(f"Exact stockout rate: {cost_optimum['stockout_rate']:.2%}")
+    print(f"Simulation average daily cost: {cost_optimum['simulation_average_daily_cost']:.2f}")
+    print(
+        f"Service-constrained policy: s = {int(service_policy['s'])}, "
+        f"S = {int(service_policy['S'])} at {service_policy['fill_rate']:.2%} fill rate"
+    )
     print(f"Results written to: {OUTPUT_DIR}")
 
 

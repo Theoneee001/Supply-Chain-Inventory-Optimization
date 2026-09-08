@@ -27,3 +27,12 @@ jobs:
 
       - name: Reproduce baseline analysis
         run: python src/inventory_model.py
+
+      - name: Execute narrative notebook
+        run: python scripts/build_notebook.py
+
+      - name: Build formal PDF report
+        run: python scripts/build_report_pdf.py
+
+      - name: Check deterministic analytical outputs
+        run: git diff --exit-code -- outputs notebooks

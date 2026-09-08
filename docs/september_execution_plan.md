@@ -17,7 +17,7 @@ By the end of September, produce a complete first version of the academic projec
 - Narrative notebook
 - Application-material notes
 
-The September version does not need to be perfect. It needs to be complete enough to show a full workflow from mathematical model to business interpretation.
+The September version now presents a complete workflow from mathematical model to business interpretation, with reproducible outputs and application-ready evidence.
 
 ## Project Outline
 
@@ -42,6 +42,7 @@ The September version does not need to be perfect. It needs to be complete enoug
    - Inventory path and demand.
    - Average cost heatmap across policies.
    - Inventory-stockout trade-off chart.
+   - Cost-service Pareto frontier.
 
 5. Business Interpretation
    - Identify the best policy under baseline assumptions.
@@ -51,9 +52,9 @@ The September version does not need to be perfect. It needs to be complete enoug
 
 6. Application Packaging
    - README for GitHub.
-   - Report PDF later.
-   - Notebook later.
-   - CV and PS素材 later.
+   - Formal report in Markdown and PDF.
+   - Executed narrative Notebook.
+   - CV, personal statement, interview, and LinkedIn material.
 
 ## Execution List
 
@@ -68,7 +69,7 @@ The September version does not need to be perfect. It needs to be complete enoug
 - [x] Run grid search across policies.
 - [x] Export baseline simulation trace.
 - [x] Export policy evaluation summary.
-- [x] Generate three SVG figures.
+- [x] Generate five SVG figures.
 - [x] Complete English report with references, results, sensitivity analysis, and AI statement.
 - [x] Complete narrative notebook with executable analysis cells.
 - [x] Create deliverables checklist.
@@ -79,10 +80,10 @@ The September version does not need to be perfect. It needs to be complete enoug
 - [x] Add literature/context paragraph on inventory management and stochastic processes.
 - [x] Add sensitivity analysis for shortage cost.
 - [x] Add sensitivity analysis for holding cost.
-- [ ] Add lead-time extension.
+- [ ] Add positive lead time as a future research extension; it is outside the declared September baseline.
 - [x] Add top-five policy table into README and report.
-- [ ] Convert report markdown to PDF.
-- [ ] Add generated figures into the report.
+- [x] Convert report Markdown to a 12-page PDF.
+- [x] Add all generated figures to the report.
 - [x] Polish Notebook into a full narrative notebook.
 - [x] Prepare CV bullets and PS paragraph.
 
@@ -98,4 +99,13 @@ Baseline grid-search result:
 
 Interpretation:
 
-Under the current assumptions, larger replenishment batches are favored because fixed ordering cost is meaningful. The policy waits until inventory is low, then replenishes to a relatively high level, balancing fewer orders against manageable stockout risk. The Monte Carlo estimate of daily cost is `19.59`, close to the exact Markov result of `19.66`.
+Under the current assumptions, larger replenishment batches are favoured because fixed ordering cost is meaningful. The policy waits until inventory is low, then replenishes to a relatively high level, balancing fewer orders against manageable stockout risk. The warm-up-adjusted Monte Carlo estimate is `19.6571`, compared with the exact Markov result of `19.6568`; the exact value lies inside the simulated 95% interval.
+
+Service-constrained result:
+
+- Minimum required fill rate: `97%`
+- Lowest-cost feasible policy: `(2, 12)`
+- Exact average daily cost: `20.11`
+- Exact fill rate: `97.09%`
+- Cost premium over the unconstrained optimum: `2.32%`
+- Stockout-rate reduction: `4.75` percentage points

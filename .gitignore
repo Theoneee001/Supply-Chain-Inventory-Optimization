@@ -1,7 +1,11 @@
 __pycache__/
 .DS_Store
+.venv/
+.worktrees/
+docs/superpowers/
 .ipynb_checkpoints/
 *.pyc
 .pytest_cache/
 .coverage
 htmlcov/
+tmp/

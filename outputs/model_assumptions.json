@@ -1,4 +1,11 @@
 {
+  "case_study": {
+    "business": "UK ecommerce fulfilment centre",
+    "product_category": "consumer electronics accessories",
+    "sku": "standard USB-C charging cable",
+    "replenishment_source": "nearby central warehouse",
+    "data_status": "illustrative scenario; not calibrated to company data"
+  },
   "demand_scenario": {
     "name": "baseline_discrete_demand",
     "values": [
@@ -34,8 +41,24 @@
   },
   "simulation": {
     "periods_per_replication": 365,
+    "warmup_periods_per_replication": 365,
     "replications_per_policy": 200,
     "base_seed": 42,
     "comparison_design": "common random numbers across policies"
+  },
+  "optimisation": {
+    "method": "exhaustive enumeration over a finite policy grid",
+    "objective": "minimise exact long-run expected daily cost",
+    "reorder_points": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6
+    ],
+    "order_up_to_rule": "S ranges from s + 2 through 12",
+    "tested_policy_count": 45,
+    "service_fill_rate_target": 0.97
   }
 }

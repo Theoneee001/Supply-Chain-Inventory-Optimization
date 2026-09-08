@@ -1,24 +1,47 @@
-# Application Materials Draft
+# Application Materials
 
-## CV Bullet Draft
+## CV Version A: Mathematics and Analytics
 
-- Built a Python-based stochastic inventory optimisation model using an `(s, S)` replenishment policy, finite Markov-chain analysis, and Monte Carlo validation across 45 policy combinations.
-- Produced reproducible visual analytics and sensitivity analysis to quantify the trade-off between average cost, stockout risk, and inventory holding; the baseline recommendation achieved a 93.91% fill rate.
+- Built a finite-state inventory optimisation model in Python, using Markov-chain stationary distributions to calculate exact long-run cost and service metrics across 45 `(s, S)` policies.
+- Corrected finite-horizon simulation bias with a 365-day warm-up and validated the exact cost of `19.6568` against 200 Monte Carlo replications (`19.6571`, 95% CI `[19.6053, 19.7089]`).
+- Formulated a service-constrained decision rule that selected `(2, 12)` at a `97.09%` fill rate, reducing stockout probability by `4.75` percentage points for a `2.32%` cost increase.
 
-## 150-200 Word Personal Statement Material
+## CV Version B: Programming and Digital Transformation
 
-One of my recent academic projects examined how mathematical modeling can support supply-chain inventory decisions under uncertain demand. I built a Python simulation of an `(s, S)` replenishment policy, where a retailer places an order when inventory falls below a reorder point and replenishes stock to a target level. By modeling daily demand as a discrete random variable and comparing policies through repeated Monte Carlo simulations, I analyzed the trade-off between ordering cost, holding cost, and shortage risk. The project helped me see how probability and stochastic-process thinking can be transformed into practical business decision tools. Instead of treating mathematics as an abstract subject, I used it to answer an operational question: how can a firm make stable replenishment decisions when the future is uncertain? This experience strengthened my interest in applying mathematical reasoning, programming, and data visualization to business analytics and digital transformation problems.
+- Developed a reproducible Python decision-support workflow with modular data classes, exhaustive policy search, sensitivity analysis, Pareto filtering, 14 regression tests, an executed Jupyter Notebook, and GitHub Actions CI.
+- Converted an informal replenishment rule into auditable CSV, JSON, SVG, Markdown, and PDF outputs, with responsible AI documentation and file-level evidence for every published result.
+
+## Personal Statement Material (180 words)
+
+My undergraduate mathematics training at the University of Manchester taught me to be careful about the gap between a result and the assumptions that produce it. I applied that habit in a supply-chain project for an illustrative ecommerce fulfilment centre replenishing one USB-C charging cable SKU. I represented an `(s, S)` inventory policy as a finite Markov chain, calculated its stationary distribution, and used Python to evaluate 45 policies under uncertain daily demand. I then checked the exact result with 200 Monte Carlo replications. During validation, I found that the original simulation window retained a small initial-state bias; adding a warm-up period brought the simulated mean of `19.6571` into close agreement with the exact value of `19.6568`. The project also changed how I think about optimisation. The lowest-cost policy achieved only a `93.91%` fill rate, so I added a `97%` service constraint. The resulting policy cost `2.32%` more but cut stockout probability by `4.75` percentage points. This work showed me how probability, linear algebra, statistics, programming, and responsible AI assistance can support a decision without hiding the judgement behind it.
 
 ## Interview Explanation: 60 Seconds
 
-I built a supply-chain inventory optimisation project using an `(s, S)` policy. The model assumes daily demand is random, and the retailer must decide when to reorder and how much inventory to hold. I used Python to calculate exact long-run results with a finite Markov chain, then validated them through Monte Carlo simulation across 45 policy combinations. The lowest-cost baseline policy was `s = 1` and `S = 12`, but it still had a 10.69% stockout rate. That made the key learning more nuanced than simply finding a minimum: I could show the business cost of improving service by comparing it with policies such as `s = 2, S = 12`. The project showed me how mathematical modelling can turn uncertainty into a practical, explainable decision rule.
+I used ideas from my mathematics degree at Manchester to build a Python inventory model for an illustrative ecommerce fulfilment centre selling one USB-C charging cable SKU. Under an `(s, S)` rule, stock is replenished to `S` when it reaches `s`. For each of 45 policies, I constructed a finite Markov chain and calculated the exact long-run cost from its stationary distribution. I then used 200 Monte Carlo replications as an independent check. That comparison exposed a small initial-state bias in my first simulation design, so I added a 365-day warm-up and protected the correction with tests. The unconstrained cost minimum was `(1, 12)`, but its fill rate was only `93.91%`. With a `97%` fill-rate constraint, `(2, 12)` became the best feasible policy. It cost `2.32%` more and reduced stockout probability by `4.75` percentage points. The project demonstrates how I combine mathematical reasoning, programming, AI-assisted review, and business judgement.
 
 ## Interview Explanation: 3 Minutes
 
-I wanted to build a project that connected probability with a business decision people make every day: how much inventory should a retailer keep when it does not know tomorrow's demand? I used a single-product setting so the logic would be easy to inspect. The retailer reviews stock every day. If inventory falls below a reorder point `s`, it orders enough to raise stock to a target `S`. Demand is random, so the retailer must balance four forces: fixed ordering cost, unit purchasing cost, holding cost, and the cost of unmet demand.
+I wanted a project that used undergraduate mathematics for a decision that a business could actually discuss. I chose inventory replenishment for an illustrative UK ecommerce fulfilment centre holding one standard USB-C charging cable SKU. The centre checks stock daily and uses an `(s, S)` policy: if opening inventory is at or below `s`, it orders enough to reach `S`. The central problem is a trade-off between fixed ordering cost, unit purchasing cost, holding cost, and the cost of unmet demand.
 
-Technically, I built the model in Python in two linked ways. The first was a finite Markov chain. Once the policy is fixed, tomorrow's inventory only depends on today's inventory state and the random demand realisation. That let me calculate an exact long-run average cost from the stationary distribution. The second was Monte Carlo simulation. I ran 200 replications of 365 days for every policy, using the same demand-path seeds across policies to make comparisons stable. The simulated result for the selected policy was very close to the Markov result, which gave me confidence that the implementation was correct.
+Mathematically, once a policy is fixed, tomorrow's opening inventory depends only on today's inventory and a new demand draw. That gives a finite Markov chain with states from zero to `S`. I built the transition matrix in Python and found its stationary distribution by power iteration. Weighting each state-demand cost by the stationary probabilities gives an exact long-run expected cost. I then evaluated every policy in a 45-member grid, so the reported optimum is global within that declared feasible set rather than the output of an unexplained heuristic.
 
-Under the baseline assumptions, the lowest-cost policy was `(1, 12)`, with an exact average daily cost of 19.66 and a fill rate of 93.91%. But I did not present that as a universal answer. Its stockout rate was still 10.69%, so I compared it with `(2, 12)`, which cost only slightly more but reduced stockouts to 5.93%. I also ran a sensitivity analysis. When shortage cost increased, the model replenished earlier; when holding cost increased, it selected leaner inventory targets.
+I also built an independent Monte Carlo check with 200 replications. This led to one of the most useful parts of the project. My original simulated interval did not quite contain the exact Markov value. Instead of changing the wording, I traced the discrepancy to the fact that each one-year run started at full inventory. A 365-day warm-up removed that transient effect. The final simulated mean is `19.6571`, the exact value is `19.6568`, and the exact result lies within the 95% simulation interval. I added regression tests so the issue cannot quietly return.
 
-What I value about the project is that it made the trade-offs visible. Instead of saying a manager should hold more or less inventory based on intuition, the model provides an explicit rule, documents its assumptions, and allows the recommendation to be updated as the business learns more. It showed me how mathematical modelling, programming, and communication can work together in operations and business analytics.
+The unconstrained minimum is `(1, 12)`, with a daily cost of `19.66` and a `93.91%` fill rate. That service level may be too low for a product advertised as readily available, so I formulated a second problem: minimise cost subject to a fill rate of at least `97%`. The answer is `(2, 12)`. It costs `0.46` more per day, or `2.32%`, while reducing stockout probability from `10.69%` to `5.93%`.
+
+AI helped me review code, spot inconsistencies, refine explanations, and inspect figures, but I did not treat it as mathematical evidence. Every published number comes from generated outputs, and the repository includes 14 tests, an executed notebook, a formal report, and CI. The main lesson for me was that good analytics does not merely produce a minimum. It makes the assumptions, validation, and cost of alternative decisions visible.
+
+## GitHub or LinkedIn Project Summary
+
+Built a reproducible stochastic inventory optimisation project for an illustrative ecommerce USB-C cable SKU. The model combines finite Markov chains, stationary distributions, Monte Carlo validation, exhaustive policy search, sensitivity analysis, and a cost-service Pareto frontier. The unconstrained policy `(1, 12)` minimises expected cost, while `(2, 12)` is the lowest-cost choice meeting a `97%` fill-rate target. Python tests, an executed notebook, generated figures, a PDF report, GitHub Actions, and a transparent AI-use record make the full analysis auditable.
+
+## Evidence to Keep Beside Any Application Claim
+
+| Claim | Repository evidence |
+| --- | --- |
+| 45 policies evaluated | `outputs/policy_evaluation_summary.csv` |
+| Exact and simulated values agree | `outputs/service_level_policy_summary.csv` and regression tests |
+| 97% service constraint | `src/inventory_model.py` and `outputs/service_level_policy_summary.csv` |
+| 14 regression tests | `tests/test_inventory_model.py` |
+| Responsible AI use | `docs/ai_workflow.md` |
+| Mathematical depth | `docs/mathematical_appendix.md` |
