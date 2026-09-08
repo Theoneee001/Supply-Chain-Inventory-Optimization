@@ -37,6 +37,7 @@
 | `src/inventory_model.py` | Reproducible simulation and Markov-chain code | Complete |
 | `tests/test_inventory_model.py` | Model regression tests | Complete: 14 tests |
 | `.github/workflows/reproducibility.yml` | GitHub automated verification | Complete |
+| `scripts/verify_artifacts.py` | Cross-platform semantic output checks | Complete |
 | `notebooks/supply_chain_inventory_optimization.ipynb` | Executed narrative analysis | Complete and deterministic |
 | `outputs/figures/` | Vector visual outputs | Five figures generated |
 | `docs/mathematical_appendix.md` | Detailed derivation and assumptions | Complete |

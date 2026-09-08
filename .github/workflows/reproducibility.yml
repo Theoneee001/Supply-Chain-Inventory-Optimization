@@ -34,5 +34,5 @@ jobs:
       - name: Build formal PDF report
         run: python scripts/build_report_pdf.py
 
-      - name: Check deterministic analytical outputs
-        run: git diff --exit-code -- outputs notebooks
+      - name: Validate analytical artifacts
+        run: python scripts/verify_artifacts.py

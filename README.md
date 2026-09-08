@@ -133,7 +133,10 @@ Higher shortage cost moves the trigger upward; higher holding cost favours a low
 ├── report/
 │   ├── final_report.md
 │   └── final_report.pdf
-├── scripts/build_report_pdf.py
+├── scripts/
+│   ├── build_notebook.py
+│   ├── build_report_pdf.py
+│   └── verify_artifacts.py
 ├── src/inventory_model.py
 ├── tests/test_inventory_model.py
 ├── LICENSE
@@ -150,6 +153,9 @@ source .venv/bin/activate
 python3 -m pip install -r requirements.txt
 python3 -m unittest discover -s tests -v
 python3 src/inventory_model.py
+python3 scripts/build_notebook.py
+python3 scripts/build_report_pdf.py
+python3 scripts/verify_artifacts.py
 ```
 
 Optional controls:
@@ -162,7 +168,7 @@ python3 src/inventory_model.py \
   --seed 42
 ```
 
-The model run regenerates the CSV, JSON, Markdown, and SVG outputs. The notebook and PDF build are also checked in GitHub Actions.
+The model run regenerates the CSV, JSON, Markdown, and SVG outputs. The remaining commands execute the notebook, rebuild the PDF, and check that the published decisions still agree across files. GitHub Actions runs the same sequence after every push.
 
 ## Limits and Next Research Step
 
