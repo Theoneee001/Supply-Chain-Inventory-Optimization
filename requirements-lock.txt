@@ -1,0 +1,8 @@
+# Exact direct-dependency versions used for the reproducible September release.
+numpy==2.5.3
+pandas==2.3.3
+nbformat==5.11.1
+nbclient==0.11.0
+ipykernel==6.31.0
+reportlab==4.5.1
+svglib==1.5.1

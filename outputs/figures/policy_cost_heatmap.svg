@@ -8,7 +8,7 @@ text { font-family: Arial, sans-serif; fill: #243044; }
 .annotation { font-size: 12px; fill: #344256; }
 </style>
 
-<text x="90" y="38" class="title">Exact Long-Run Average Daily Cost Across (s, S) Policies</text>
+<text x="90" y="38" class="title">Stationary Long-Run Average Daily Cost Across (s, S) Policies</text>
 <text x="310" y="386" class="label">Order-up-to level S</text>
 <text x="26" y="285" class="label" transform="rotate(-90 26,285)">Reorder point s</text>
 <text x="108" y="68" class="tick">3</text><text x="166" y="68" class="tick">4</text><text x="224" y="68" class="tick">5</text><text x="282" y="68" class="tick">6</text><text x="340" y="68" class="tick">7</text><text x="398" y="68" class="tick">8</text><text x="456" y="68" class="tick">9</text><text x="514" y="68" class="tick">10</text><text x="572" y="68" class="tick">11</text><text x="630" y="68" class="tick">12</text>

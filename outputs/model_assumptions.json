@@ -1,31 +1,100 @@
 {
   "case_study": {
-    "business": "UK ecommerce fulfilment centre",
-    "product_category": "consumer electronics accessories",
-    "sku": "standard USB-C charging cable",
+    "business": "illustrative ecommerce fulfilment centre",
+    "product_scope": "one generic non-perishable SKU",
+    "category_status": "category-neutral by design",
     "replenishment_source": "nearby central warehouse",
     "data_status": "illustrative scenario; not calibrated to company data"
   },
-  "demand_scenario": {
-    "name": "baseline_discrete_demand",
-    "values": [
-      0,
-      1,
-      2,
-      3,
-      4,
-      5,
-      6
-    ],
-    "probabilities": [
-      0.05,
-      0.1,
-      0.2,
-      0.25,
-      0.2,
-      0.12,
-      0.08
-    ]
+  "demand_scenarios": {
+    "baseline_mixed": {
+      "name": "baseline_mixed",
+      "values": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ],
+      "probabilities": [
+        0.05,
+        0.1,
+        0.2,
+        0.25,
+        0.2,
+        0.12,
+        0.08
+      ]
+    },
+    "steady": {
+      "name": "steady",
+      "values": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ],
+      "probabilities": [
+        0.01,
+        0.04,
+        0.2,
+        0.5,
+        0.2,
+        0.04,
+        0.01
+      ]
+    },
+    "volatile": {
+      "name": "volatile",
+      "values": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ],
+      "probabilities": [
+        0.2,
+        0.1,
+        0.1,
+        0.2,
+        0.1,
+        0.1,
+        0.2
+      ]
+    },
+    "promotion_peak": {
+      "name": "promotion_peak",
+      "values": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8
+      ],
+      "probabilities": [
+        0.01,
+        0.03,
+        0.06,
+        0.12,
+        0.2,
+        0.23,
+        0.18,
+        0.11,
+        0.06
+      ]
+    }
   },
   "cost_parameters": {
     "order_fixed_cost": 30.0,
@@ -48,7 +117,7 @@
   },
   "optimisation": {
     "method": "exhaustive enumeration over a finite policy grid",
-    "objective": "minimise exact long-run expected daily cost",
+    "objective": "minimise numerically evaluated stationary long-run expected daily cost",
     "reorder_points": [
       1,
       2,

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import re
-from functools import partial
 from html import escape
 from pathlib import Path
 
@@ -12,7 +11,6 @@ from reportlab.lib.enums import TA_CENTER, TA_LEFT
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import mm
-from reportlab.pdfgen import canvas
 from reportlab.platypus import (
     BaseDocTemplate,
     Frame,
@@ -53,6 +51,7 @@ class ReportDocument(BaseDocTemplate):
             rightMargin=22 * mm,
             topMargin=21 * mm,
             bottomMargin=19 * mm,
+            invariant=1,
             title="Stochastic Inventory Optimisation for Ecommerce",
             author="Jialiang Gong",
             subject="Finite Markov-chain and Monte Carlo inventory policy study",
@@ -98,6 +97,16 @@ def make_styles() -> dict[str, ParagraphStyle]:
             alignment=TA_LEFT,
             allowWidows=0,
             allowOrphans=0,
+        ),
+        "table_header": ParagraphStyle(
+            "ReportTableHeader",
+            parent=base["BodyText"],
+            fontName="Helvetica-Bold",
+            fontSize=8.4,
+            leading=10.5,
+            textColor=WHITE,
+            spaceAfter=0,
+            alignment=TA_LEFT,
         ),
         "h1": ParagraphStyle(
             "ReportHeading1",
@@ -192,8 +201,14 @@ def table_from_lines(lines: list[str], styles: dict[str, ParagraphStyle]) -> Tab
     available_width = A4[0] - 44 * mm
     column_widths = [available_width / column_count] * column_count
     data = [
-        [Paragraph(inline_markup(cell), styles["body"]) for cell in row]
-        for row in rows
+        [
+            Paragraph(
+                inline_markup(cell),
+                styles["table_header"] if row_index == 0 else styles["body"],
+            )
+            for cell in row
+        ]
+        for row_index, row in enumerate(rows)
     ]
     table = Table(data, colWidths=column_widths, repeatRows=1, hAlign="LEFT")
     table.setStyle(
@@ -378,7 +393,7 @@ def title_page(styles: dict[str, ParagraphStyle]) -> list:
         Table([["", ""]], colWidths=[34 * mm, 122 * mm], rowHeights=[3 * mm], style=TableStyle([("BACKGROUND", (0, 0), (0, 0), GOLD), ("BACKGROUND", (1, 0), (1, 0), TEAL)])),
         Spacer(1, 13 * mm),
         Paragraph("Stochastic Inventory<br/>Optimisation for Ecommerce", title_style),
-        Paragraph("A Markov-chain and Monte Carlo study of one USB-C charging cable SKU", subtitle_style),
+        Paragraph("A Markov-chain and Monte Carlo study of one category-neutral ecommerce SKU", subtitle_style),
         Spacer(1, 6 * mm),
         metrics,
         Spacer(1, 22 * mm),
@@ -400,7 +415,7 @@ def build_pdf() -> None:
     story.extend([Paragraph("Contents", styles["toc_title"]), contents, PageBreak()])
     story.extend(parse_markdown(styles))
     document = ReportDocument(str(OUTPUT))
-    document.multiBuild(story, canvasmaker=partial(canvas.Canvas, invariant=1))
+    document.multiBuild(story)
     print(f"PDF written to {OUTPUT}")
 
 

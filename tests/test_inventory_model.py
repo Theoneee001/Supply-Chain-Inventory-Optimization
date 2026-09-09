@@ -15,6 +15,8 @@ import pandas as pd
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
+import inventory_model as inventory  # noqa: E402
+
 from inventory_model import (  # noqa: E402
     CostParameters,
     DemandScenario,
@@ -155,6 +157,76 @@ class InventoryModelTests(unittest.TestCase):
             figure = Path(temporary_directory, "cost_service_frontier.svg").read_text(encoding="utf-8")
         self.assertIn("Cost optimum (1, 12)", figure)
         self.assertIn("97% fill-rate choice (2, 12)", figure)
+
+    def test_declared_demand_scenarios_are_valid_and_distinct(self) -> None:
+        scenarios = getattr(inventory, "DEMAND_SCENARIOS", None)
+        self.assertIsNotNone(scenarios, "DEMAND_SCENARIOS must be declared")
+        if scenarios is None:
+            return
+
+        self.assertEqual(
+            set(scenarios),
+            {"baseline_mixed", "steady", "volatile", "promotion_peak"},
+        )
+        moments: set[tuple[float, float]] = set()
+        for scenario in scenarios.values():
+            values, probabilities = scenario.arrays()
+            mean = float(np.dot(values, probabilities))
+            variance = float(np.dot((values - mean) ** 2, probabilities))
+            moments.add((round(mean, 6), round(variance, 6)))
+        self.assertEqual(len(moments), 4)
+
+    def test_demand_scenario_analysis_evaluates_each_policy_and_selects_its_minimum(self) -> None:
+        analyse = getattr(inventory, "demand_scenario_analysis", None)
+        scenarios = getattr(inventory, "DEMAND_SCENARIOS", None)
+        self.assertIsNotNone(analyse, "demand_scenario_analysis must be implemented")
+        self.assertIsNotNone(scenarios, "DEMAND_SCENARIOS must be declared")
+        if analyse is None or scenarios is None:
+            return
+
+        policies = [Policy(1, 6), Policy(2, 7)]
+        scenario_summary, policy_results = analyse(
+            policies,
+            scenarios=scenarios,
+            replications=4,
+            periods=20,
+            warmup_periods=10,
+            seed=9,
+        )
+
+        self.assertEqual(len(scenario_summary), 4)
+        self.assertEqual(len(policy_results), 8)
+        self.assertEqual(set(scenario_summary["scenario"]), set(scenarios))
+        service_columns = {"service_s", "service_S", "service_fill_rate"}
+        self.assertTrue(
+            service_columns.issubset(scenario_summary.columns),
+            "Scenario summary must report the illustrative 97% service choice",
+        )
+        if not service_columns.issubset(scenario_summary.columns):
+            return
+        for row in scenario_summary.itertuples(index=False):
+            candidates = policy_results.loc[policy_results["scenario"] == row.scenario]
+            minimum = candidates.sort_values(
+                ["average_daily_cost", "stockout_rate", "s", "S"]
+            ).iloc[0]
+            self.assertEqual((row.best_s, row.best_S), (minimum["s"], minimum["S"]))
+            self.assertAlmostEqual(row.exact_average_daily_cost, minimum["average_daily_cost"])
+            self.assertLessEqual(row.simulation_cost_95_ci_low, row.simulation_average_daily_cost)
+            self.assertGreaterEqual(row.simulation_cost_95_ci_high, row.simulation_average_daily_cost)
+
+            service_feasible = candidates.loc[candidates["fill_rate"] >= 0.97].sort_values(
+                ["average_daily_cost", "stockout_rate", "s", "S"]
+            )
+            if service_feasible.empty:
+                self.assertTrue(pd.isna(row.service_s))
+                self.assertTrue(pd.isna(row.service_S))
+            else:
+                service_minimum = service_feasible.iloc[0]
+                self.assertEqual(
+                    (row.service_s, row.service_S),
+                    (service_minimum["s"], service_minimum["S"]),
+                )
+                self.assertGreaterEqual(row.service_fill_rate, 0.97)
 
 
 if __name__ == "__main__":

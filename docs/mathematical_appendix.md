@@ -94,16 +94,29 @@ minimise C(s,S) over all 45 feasible policies.
 
 The program evaluates every member of the set, so `(1, 12)` is a global minimum within this grid. No gradient method or heuristic search is needed. The result does not establish optimality outside the grid or under different assumptions.
 
-The service-constrained decision is
+The illustrative service-constrained decision is
 
 ```text
 minimise C(s,S)
 subject to FillRate(s,S) >= 0.97.
 ```
 
-After removing policies that fail the constraint, `(2, 12)` has the lowest expected cost. This formulation separates mathematical optimisation from management preference: the model calculates the best policy once the objective and constraint have been chosen.
+After removing policies that fail the constraint, `(2, 12)` has the lowest expected cost under baseline demand. The value `0.97` is a scenario chosen to demonstrate constrained optimisation, not an asserted industry standard. This formulation separates mathematical optimisation from management preference: the model calculates the best policy once the objective and constraint have been chosen.
 
-## 6. Monte Carlo estimator and confidence interval
+## 6. Demand-distribution experiments
+
+For a discrete demand scenario with values `d_k` and probabilities `p_k`, the first two moments are
+
+```text
+E[D] = sum_k p_k*d_k,
+Var(D) = sum_k p_k*(d_k - E[D])^2.
+```
+
+The steady and volatile scenarios both have `E[D] = 3.00`, but their variances are `0.90` and `4.60`. Holding the mean constant while changing the variance separates demand level from tail risk. The promotion-peak scenario changes both the level and shape, with `E[D] = 4.79` and possible demand up to eight units.
+
+For each distribution, the transition matrix is rebuilt because every `P_ij` depends on the demand probabilities. The stationary distribution, reward averages, and all 45 policy scores are then recalculated. The cost optimum remains `(1, 12)` across the four tested distributions. Under the illustrative 97% constraint, however, the minimum-cost trigger rises from two under steady or baseline demand to three under volatile demand and four during the promotion peak. This comparison shows why equal average demand does not imply equal service performance.
+
+## 7. Monte Carlo estimator and confidence interval
 
 For policy `a`, replication `r` produces a measured average cost `X_(a,r)` over `T = 365` days. The Monte Carlo estimate is
 
@@ -119,13 +132,13 @@ X_bar_a +/- 1.96 * s_a / sqrt(R),
 
 where `s_a` is the sample standard deviation of the replication means. The interval quantifies simulation uncertainty; it does not describe uncertainty in the illustrative demand probabilities or cost assumptions.
 
-Each replication discards 365 warm-up days. Without this step, every run begins at `S`, so the finite measurement window over-represents the chosen initial condition. After warm-up, the baseline simulated mean is `19.6571`, close to the exact value `19.6568`, and the exact result lies inside the simulated interval `[19.6053, 19.7089]`.
+Each replication discards 365 warm-up days. Without this step, every run begins at `S`, so the finite measurement window over-represents the chosen initial condition. After warm-up, the baseline simulated mean is `19.6571`, close to the stationary value `19.6568`, and the stationary result lies inside the simulated interval `[19.6053, 19.7089]`.
 
-## 7. Common random numbers
+## 8. Common random numbers
 
 Policy comparisons use the same seed for replication `r` across every policy. The policies therefore face the same demand path in that replication. This induces positive correlation between their cost estimates and reduces noise in pairwise differences. The technique is useful because the decision depends on relative performance, not only on the precision of each policy estimate in isolation.
 
-## 8. Pareto efficiency
+## 9. Pareto efficiency
 
 Policy `A` dominates policy `B` on the reported cost-stockout criteria if
 
@@ -136,6 +149,6 @@ Stockout_A <= Stockout_B,
 
 with at least one strict inequality. A dominated policy is never attractive when those are the only two criteria: another policy is no more expensive and no worse on stockouts. The generated Pareto frontier retains only non-dominated policies and makes the cost of improved service visible.
 
-## 9. What the mathematics does not prove
+## 10. What the mathematics does not prove
 
-The analysis is exact only for the model that was specified. It does not prove that demand is independent, that lead time is zero, or that a shortage costs eight currency units. Those are assumptions, not theorems. This distinction matters. Mathematics gives a rigorous conditional answer; responsible modelling also states the conditions and tests how the answer moves when they change.
+The stationary analysis is numerically evaluated to a tolerance of `1e-14` for the model that was specified. It does not prove that demand is independent, that lead time is zero, that a shortage costs eight currency units, or that 97% is the correct service target. Those are assumptions, not theorems. This distinction matters. Mathematics gives a rigorous conditional answer; responsible modelling also states the conditions and tests how the answer moves when they change.

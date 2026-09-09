@@ -25,9 +25,9 @@ OUTPUT_DIR = ROOT / "outputs"
 FIGURE_DIR = OUTPUT_DIR / "figures"
 SERVICE_FILL_RATE_TARGET = 0.97
 CASE_STUDY = {
-    "business": "UK ecommerce fulfilment centre",
-    "product_category": "consumer electronics accessories",
-    "sku": "standard USB-C charging cable",
+    "business": "illustrative ecommerce fulfilment centre",
+    "product_scope": "one generic non-perishable SKU",
+    "category_status": "category-neutral by design",
     "replenishment_source": "nearby central warehouse",
     "data_status": "illustrative scenario; not calibrated to company data",
 }
@@ -82,10 +82,28 @@ class DemandScenario:
 
 
 BASELINE_DEMAND = DemandScenario(
-    name="baseline_discrete_demand",
+    name="baseline_mixed",
     values=(0, 1, 2, 3, 4, 5, 6),
     probabilities=(0.05, 0.10, 0.20, 0.25, 0.20, 0.12, 0.08),
 )
+DEMAND_SCENARIOS = {
+    BASELINE_DEMAND.name: BASELINE_DEMAND,
+    "steady": DemandScenario(
+        name="steady",
+        values=(0, 1, 2, 3, 4, 5, 6),
+        probabilities=(0.01, 0.04, 0.20, 0.50, 0.20, 0.04, 0.01),
+    ),
+    "volatile": DemandScenario(
+        name="volatile",
+        values=(0, 1, 2, 3, 4, 5, 6),
+        probabilities=(0.20, 0.10, 0.10, 0.20, 0.10, 0.10, 0.20),
+    ),
+    "promotion_peak": DemandScenario(
+        name="promotion_peak",
+        values=(0, 1, 2, 3, 4, 5, 6, 7, 8),
+        probabilities=(0.01, 0.03, 0.06, 0.12, 0.20, 0.23, 0.18, 0.11, 0.06),
+    ),
+}
 BASELINE_COSTS = CostParameters()
 
 
@@ -230,7 +248,7 @@ def markov_policy_metrics(
     demand_scenario: DemandScenario = BASELINE_DEMAND,
     costs: CostParameters = BASELINE_COSTS,
 ) -> dict[str, float]:
-    """Compute exact long-run metrics from the finite Markov-chain model."""
+    """Compute stationary long-run metrics for the finite Markov-chain model."""
 
     policy.validate()
     costs.validate()
@@ -298,7 +316,7 @@ def evaluate_policies(
     costs: CostParameters = BASELINE_COSTS,
     seed: int = 42,
 ) -> pd.DataFrame:
-    """Compare policies using exact Markov metrics and repeated simulations.
+    """Compare policies using stationary Markov metrics and repeated simulations.
 
     The same replication seeds are used for every policy.  This common-random-
     numbers design reduces noise when comparing alternatives.
@@ -444,6 +462,93 @@ def sensitivity_analysis(
     return pd.DataFrame(rows).sort_values(["holding_cost", "shortage_cost"], ignore_index=True)
 
 
+def demand_scenario_analysis(
+    policies: list[Policy],
+    scenarios: dict[str, DemandScenario] = DEMAND_SCENARIOS,
+    replications: int = 200,
+    periods: int = 365,
+    warmup_periods: int = 365,
+    costs: CostParameters = BASELINE_COSTS,
+    seed: int = 42,
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Compare policy optima across demand distributions and validate each by simulation."""
+
+    if not policies:
+        raise ValueError("At least one policy is required.")
+    if not scenarios:
+        raise ValueError("At least one demand scenario is required.")
+
+    scenario_rows: list[dict[str, float | str]] = []
+    policy_rows: list[dict[str, float | str]] = []
+    for scenario_index, (scenario_name, scenario) in enumerate(scenarios.items()):
+        values, probabilities = scenario.arrays()
+        demand_mean = float(np.dot(values, probabilities))
+        demand_variance = float(np.dot((values - demand_mean) ** 2, probabilities))
+
+        current_rows = [
+            {
+                "scenario": scenario_name,
+                "s": policy.reorder_point,
+                "S": policy.order_up_to,
+                **markov_policy_metrics(policy, demand_scenario=scenario, costs=costs),
+            }
+            for policy in policies
+        ]
+        policy_rows.extend(current_rows)
+        current_results = pd.DataFrame(current_rows)
+        best = select_policy(current_results)
+        service_feasible = current_results.loc[
+            current_results["fill_rate"] >= SERVICE_FILL_RATE_TARGET
+        ]
+        service_best = (
+            select_policy(current_results, minimum_fill_rate=SERVICE_FILL_RATE_TARGET)
+            if not service_feasible.empty
+            else None
+        )
+        best_policy = Policy(int(best["s"]), int(best["S"]))
+        validation = evaluate_policies(
+            [best_policy],
+            replications=replications,
+            periods=periods,
+            warmup_periods=warmup_periods,
+            demand_scenario=scenario,
+            costs=costs,
+            seed=seed + scenario_index * 10_000,
+        ).iloc[0]
+        scenario_rows.append(
+            {
+                "scenario": scenario_name,
+                "demand_mean": demand_mean,
+                "demand_variance": demand_variance,
+                "best_s": int(best["s"]),
+                "best_S": int(best["S"]),
+                "exact_average_daily_cost": float(best["average_daily_cost"]),
+                "exact_stockout_rate": float(best["stockout_rate"]),
+                "exact_fill_rate": float(best["fill_rate"]),
+                "exact_average_ending_inventory": float(best["average_ending_inventory"]),
+                "service_s": int(service_best["s"]) if service_best is not None else np.nan,
+                "service_S": int(service_best["S"]) if service_best is not None else np.nan,
+                "service_average_daily_cost": (
+                    float(service_best["average_daily_cost"]) if service_best is not None else np.nan
+                ),
+                "service_fill_rate": (
+                    float(service_best["fill_rate"]) if service_best is not None else np.nan
+                ),
+                "simulation_average_daily_cost": float(validation["simulation_average_daily_cost"]),
+                "simulation_cost_95_ci_low": float(validation["simulation_cost_95_ci_low"]),
+                "simulation_cost_95_ci_high": float(validation["simulation_cost_95_ci_high"]),
+                "absolute_cost_gap": float(validation["absolute_cost_gap"]),
+            }
+        )
+
+    scenario_summary = pd.DataFrame(scenario_rows)
+    policy_results = pd.DataFrame(policy_rows).sort_values(
+        ["scenario", "average_daily_cost", "stockout_rate", "s", "S"],
+        ignore_index=True,
+    )
+    return scenario_summary, policy_results
+
+
 def _scale(value: float, source_min: float, source_max: float, target_min: float, target_max: float) -> float:
     if np.isclose(source_max, source_min):
         return (target_min + target_max) / 2
@@ -518,7 +623,7 @@ def plot_inventory_path(example: pd.DataFrame, policy: Policy) -> None:
 
 
 def plot_policy_comparison(summary: pd.DataFrame) -> None:
-    """Plot exact long-run daily cost for every tested (s, S) combination."""
+    """Plot stationary long-run daily cost for every tested (s, S) combination."""
 
     width, height = 780, 480
     left, top, cell_width, cell_height = 90, 80, 58, 46
@@ -555,7 +660,7 @@ def plot_policy_comparison(summary: pd.DataFrame) -> None:
         for index, row in enumerate(pivot.index)
     )
     body = f"""
-<text x="{left}" y="38" class="title">Exact Long-Run Average Daily Cost Across (s, S) Policies</text>
+<text x="{left}" y="38" class="title">Stationary Long-Run Average Daily Cost Across (s, S) Policies</text>
 <text x="{left + 220}" y="386" class="label">Order-up-to level S</text>
 <text x="26" y="285" class="label" transform="rotate(-90 26,285)">Reorder point s</text>
 {x_labels}
@@ -716,9 +821,60 @@ def plot_sensitivity(sensitivity: pd.DataFrame) -> None:
     _write_svg(FIGURE_DIR / "cost_sensitivity.svg", body, width, height)
 
 
+def plot_demand_scenario_comparison(scenarios: pd.DataFrame) -> None:
+    """Compare the cost-optimal policy and service outcome across demand distributions."""
+
+    width, height = 920, 520
+    top, row_height = 116, 82
+    bar_left, bar_width = 390, 220
+    service_left, service_width = 700, 155
+    maximum_cost = float(scenarios["exact_average_daily_cost"].max())
+    colours = ("#117c75", "#d7a43b", "#d95d4f", "#526b8b")
+    rows: list[str] = []
+
+    for index, row in enumerate(scenarios.itertuples(index=False)):
+        y = top + index * row_height
+        cost_width = _scale(float(row.exact_average_daily_cost), 0, maximum_cost, 0, bar_width)
+        fill_x = _scale(float(row.exact_fill_rate), 0.70, 1.0, service_left, service_left + service_width)
+        label = str(row.scenario).replace("_", " ").title()
+        colour = colours[index % len(colours)]
+        service_policy = (
+            f"({int(row.service_s)}, {int(row.service_S)})"
+            if not pd.isna(row.service_s)
+            else "Not feasible"
+        )
+        rows.extend(
+            [
+                f'<text x="56" y="{y + 8}" class="annotation">{label}</text>',
+                f'<text x="56" y="{y + 29}" class="tick">E[D] {row.demand_mean:.2f} | Var(D) {row.demand_variance:.2f}</text>',
+                f'<text x="240" y="{y + 8}" class="annotation">Cost ({int(row.best_s)}, {int(row.best_S)})</text>',
+                f'<text x="240" y="{y + 29}" class="tick">97% {service_policy}</text>',
+                f'<rect x="{bar_left}" y="{y - 10}" width="{cost_width:.1f}" height="27" fill="{colour}" opacity="0.85"/>',
+                f'<text x="{bar_left + cost_width + 8:.1f}" y="{y + 8}" class="annotation">{row.exact_average_daily_cost:.2f}</text>',
+                f'<line x1="{service_left}" y1="{y + 3}" x2="{service_left + service_width}" y2="{y + 3}" stroke="#d6dde5" stroke-width="3"/>',
+                f'<circle cx="{fill_x:.1f}" cy="{y + 3}" r="7" fill="{colour}"/>',
+                f'<text x="{fill_x - 17:.1f}" y="{y + 29}" class="tick">{row.exact_fill_rate:.1%}</text>',
+            ]
+        )
+
+    body = f"""
+<text x="56" y="38" class="title">Demand-Distribution Stress Test</text>
+<text x="56" y="62" class="tick">Costs and the 45-policy search grid are held constant; each selected policy is checked by simulation.</text>
+<text x="56" y="91" class="label">Demand scenario</text>
+<text x="240" y="91" class="label">Selected policies</text>
+<text x="{bar_left}" y="91" class="label">Expected daily cost</text>
+<text x="{service_left}" y="91" class="label">Fill rate</text>
+{''.join(rows)}
+<text x="{service_left}" y="{height - 31}" class="tick">70%</text>
+<text x="{service_left + service_width - 25}" y="{height - 31}" class="tick">100%</text>
+"""
+    _write_svg(FIGURE_DIR / "demand_scenario_comparison.svg", body, width, height)
+
+
 def write_run_summary(
     summary: pd.DataFrame,
     sensitivity: pd.DataFrame,
+    demand_scenarios: pd.DataFrame,
     cost_optimum: pd.Series,
     service_policy: pd.Series,
     periods: int,
@@ -739,13 +895,17 @@ def write_run_summary(
         f"| {row.holding_cost:g} | {row.shortage_cost:g} | ({int(row.best_s)}, {int(row.best_S)}) | {row.best_average_daily_cost:.2f} | {row.best_stockout_rate:.2%} |"
         for row in sensitivity.itertuples(index=False)
     )
+    demand_scenario_lines = "\n".join(
+        f"| {row.scenario.replace('_', ' ').title()} | {row.demand_mean:.2f} | {row.demand_variance:.2f} | ({int(row.best_s)}, {int(row.best_S)}) | ({int(row.service_s)}, {int(row.service_S)}) | {row.exact_average_daily_cost:.2f} | {row.exact_fill_rate:.2%} |"
+        for row in demand_scenarios.itertuples(index=False)
+    )
     content = f"""# Analysis Run Summary
 
-This file is generated by `python3 src/inventory_model.py`. It records the exact Markov-chain result, warm-up-adjusted Monte Carlo validation, and decision rules used in the report.
+This file is generated by `python3 src/inventory_model.py`. It records the stationary Markov-chain result, warm-up-adjusted Monte Carlo validation, and decision rules used in the report.
 
 ## Case and Decision Question
 
-The illustrative case is a UK ecommerce fulfilment centre replenishing one standard USB-C charging cable SKU from a nearby central warehouse. The inputs are transparent teaching assumptions, not company observations.
+The illustrative case is an ecommerce fulfilment centre replenishing one generic non-perishable SKU from a nearby central warehouse. The product category is intentionally unspecified. The inputs are transparent teaching assumptions, not company observations.
 
 The program answers two different questions: which tested policy has the lowest expected cost, and which has the lowest cost while achieving at least a {SERVICE_FILL_RATE_TARGET:.0%} fill rate?
 
@@ -753,7 +913,7 @@ The program answers two different questions: which tested policy has the lowest 
 
 The lowest-cost policy in the tested grid is **({int(cost_optimum['s'])}, {int(cost_optimum['S'])})**.
 
-| Metric | Exact Markov result | Monte Carlo validation |
+| Metric | Stationary Markov result | Monte Carlo validation |
 | --- | ---: | ---: |
 | Average daily cost | {cost_optimum['average_daily_cost']:.2f} | {cost_optimum['simulation_average_daily_cost']:.2f} |
 | 95% CI for simulated cost | - | [{cost_optimum['simulation_cost_95_ci_low']:.2f}, {cost_optimum['simulation_cost_95_ci_high']:.2f}] |
@@ -761,15 +921,21 @@ The lowest-cost policy in the tested grid is **({int(cost_optimum['s'])}, {int(c
 | Fill rate | {cost_optimum['fill_rate']:.2%} | {cost_optimum['simulation_fill_rate']:.2%} |
 | Average ending inventory | {cost_optimum['average_ending_inventory']:.2f} | {cost_optimum['simulation_average_ending_inventory']:.2f} |
 
-Each simulation replication discards {warmup_periods} warm-up days before measuring {periods} days. Across {replications} replications, the exact Markov cost {'falls inside' if exact_inside_interval else 'does not fall inside'} the simulated 95% interval. The absolute difference between the two estimates is {cost_optimum['absolute_cost_gap']:.3f} currency units per day.
+Each simulation replication discards {warmup_periods} warm-up days before measuring {periods} days. Across {replications} replications, the numerically evaluated stationary Markov cost {'falls inside' if exact_inside_interval else 'does not fall inside'} the simulated 95% interval. The absolute difference between the two estimates is {cost_optimum['absolute_cost_gap']:.3f} currency units per day.
 
 The lowest-stockout policy in the tested grid is ({int(closest_service_policy['s'])}, {int(closest_service_policy['S'])}); it has a {closest_service_policy['stockout_rate']:.2%} stockout rate but a higher average daily cost of {closest_service_policy['average_daily_cost']:.2f}. This makes the cost-service trade-off explicit rather than treating the low-cost choice as universally best.
 
 ## Service-Constrained Policy
 
-Among policies with a fill rate of at least {SERVICE_FILL_RATE_TARGET:.0%}, the lowest-cost choice is **({int(service_policy['s'])}, {int(service_policy['S'])})**. Its exact daily cost is {service_policy['average_daily_cost']:.2f}, fill rate is {service_policy['fill_rate']:.2%}, and stockout rate is {service_policy['stockout_rate']:.2%}.
+Among policies with a fill rate of at least {SERVICE_FILL_RATE_TARGET:.0%}, the lowest-cost choice is **({int(service_policy['s'])}, {int(service_policy['S'])})**. Its stationary daily cost is {service_policy['average_daily_cost']:.2f}, fill rate is {service_policy['fill_rate']:.2%}, and stockout rate is {service_policy['stockout_rate']:.2%}.
 
-Compared with the unconstrained minimum, this choice costs {incremental_cost:.2f} more per day ({incremental_cost_rate:.2%}) while reducing the stockout rate by {(cost_optimum['stockout_rate'] - service_policy['stockout_rate']) * 100:.2f} percentage points. This is the stronger operational recommendation when a 97% fill-rate promise is non-negotiable.
+Compared with the unconstrained minimum, this choice costs {incremental_cost:.2f} more per day ({incremental_cost_rate:.2%}) while reducing the stockout rate by {(cost_optimum['stockout_rate'] - service_policy['stockout_rate']) * 100:.2f} percentage points. This recommendation applies only when the illustrative 97% target is adopted; the threshold is not an industry benchmark.
+
+## Demand-Distribution Sensitivity
+
+| Scenario | Mean demand | Demand variance | Cost optimum | 97% choice | Expected daily cost | Fill rate |
+| --- | ---: | ---: | --- | --- | ---: | ---: |
+{demand_scenario_lines}
 
 ## Cost Sensitivity
 
@@ -811,6 +977,13 @@ def main() -> None:
         seed=arguments.seed,
     )
     sensitivity = sensitivity_analysis(policies)
+    demand_scenarios, demand_policy_results = demand_scenario_analysis(
+        policies,
+        replications=arguments.replications,
+        periods=arguments.periods,
+        warmup_periods=arguments.warmup_periods,
+        seed=arguments.seed,
+    )
     cost_optimum = select_policy(summary)
     service_policy = select_policy(summary, minimum_fill_rate=SERVICE_FILL_RATE_TARGET)
     frontier = pareto_frontier(summary)
@@ -842,11 +1015,15 @@ def main() -> None:
     baseline_trace.to_csv(OUTPUT_DIR / "baseline_simulation_trace.csv", index=False)
     summary.to_csv(OUTPUT_DIR / "policy_evaluation_summary.csv", index=False)
     sensitivity.to_csv(OUTPUT_DIR / "cost_sensitivity_summary.csv", index=False)
+    demand_scenarios.to_csv(OUTPUT_DIR / "demand_scenario_summary.csv", index=False)
+    demand_policy_results.to_csv(OUTPUT_DIR / "demand_scenario_policy_evaluation.csv", index=False)
     decision_summary.to_csv(OUTPUT_DIR / "service_level_policy_summary.csv", index=False)
     frontier.to_csv(OUTPUT_DIR / "policy_pareto_frontier.csv", index=False)
     assumptions = {
         "case_study": CASE_STUDY,
-        "demand_scenario": asdict(BASELINE_DEMAND),
+        "demand_scenarios": {
+            name: asdict(scenario) for name, scenario in DEMAND_SCENARIOS.items()
+        },
         "cost_parameters": asdict(BASELINE_COSTS),
         "inventory_system": {
             "review_period": "daily",
@@ -863,7 +1040,7 @@ def main() -> None:
         },
         "optimisation": {
             "method": "exhaustive enumeration over a finite policy grid",
-            "objective": "minimise exact long-run expected daily cost",
+            "objective": "minimise numerically evaluated stationary long-run expected daily cost",
             "reorder_points": list(range(1, 7)),
             "order_up_to_rule": "S ranges from s + 2 through 12",
             "tested_policy_count": len(policies),
@@ -877,9 +1054,11 @@ def main() -> None:
     plot_tradeoff(summary)
     plot_service_frontier(summary, frontier, cost_optimum, service_policy)
     plot_sensitivity(sensitivity)
+    plot_demand_scenario_comparison(demand_scenarios)
     write_run_summary(
         summary,
         sensitivity,
+        demand_scenarios,
         cost_optimum,
         service_policy,
         arguments.periods,
@@ -889,8 +1068,8 @@ def main() -> None:
 
     print("Baseline analysis complete")
     print(f"Cost-optimal policy: s = {int(cost_optimum['s'])}, S = {int(cost_optimum['S'])}")
-    print(f"Exact average daily cost: {cost_optimum['average_daily_cost']:.2f}")
-    print(f"Exact stockout rate: {cost_optimum['stockout_rate']:.2%}")
+    print(f"Stationary average daily cost: {cost_optimum['average_daily_cost']:.2f}")
+    print(f"Stationary stockout rate: {cost_optimum['stockout_rate']:.2%}")
     print(f"Simulation average daily cost: {cost_optimum['simulation_average_daily_cost']:.2f}")
     print(
         f"Service-constrained policy: s = {int(service_policy['s'])}, "

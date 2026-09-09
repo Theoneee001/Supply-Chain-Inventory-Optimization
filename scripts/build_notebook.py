@@ -27,11 +27,11 @@ def build_notebook() -> nbformat.NotebookNode:
             """
             # Stochastic Inventory Optimisation for Ecommerce
 
-            ## A Markov-chain and Monte Carlo study of one USB-C charging cable SKU
+            ## A Markov-chain and Monte Carlo study of one category-neutral SKU
 
-            This notebook follows the full argument behind the GitHub report. The case is a UK ecommerce fulfilment centre replenishing one standard USB-C charging cable from a nearby central warehouse. Demand and cost inputs are illustrative, not company observations.
+            This notebook follows the full argument behind the GitHub report. The case is an illustrative ecommerce fulfilment centre replenishing one generic non-perishable SKU from a nearby central warehouse. The category is intentionally unspecified, and the inputs are not company observations.
 
-            **Question:** Which `(s, S)` policy minimises exact long-run expected daily cost, and which policy is cheapest when fill rate must be at least 97%?
+            **Question:** Which `(s, S)` policy minimises stationary long-run expected daily cost, how does the answer respond to different demand distributions, and which policy is cheapest under an illustrative 97% fill-rate target?
             """
         ),
         markdown(
@@ -45,7 +45,8 @@ def build_notebook() -> nbformat.NotebookNode:
             3. weight state-demand costs by stationary probabilities;
             4. enumerate 45 feasible policies;
             5. check the implementation with warm-up-adjusted Monte Carlo simulation;
-            6. impose a 97% fill-rate constraint and inspect the cost-service Pareto frontier.
+            6. impose an illustrative 97% fill-rate constraint and inspect the cost-service Pareto frontier;
+            7. repeat the optimisation under four different demand distributions.
             """
         ),
         code(
@@ -152,9 +153,9 @@ def build_notebook() -> nbformat.NotebookNode:
         ),
         markdown(
             """
-            ## 3. Exact long-run result
+            ## 3. Stationary long-run result
 
-            The stationary distribution gives the long-run proportion of days spent in each state. Weighting expected one-day outcomes by these probabilities produces exact metrics for the stated finite model.
+            The stationary distribution gives the long-run proportion of days spent in each state. Weighting expected one-day outcomes by these probabilities produces deterministic finite-model metrics, evaluated numerically to a tolerance of `1e-14`.
             """
         ),
         code(
@@ -228,7 +229,7 @@ def build_notebook() -> nbformat.NotebookNode:
             """
             ## 6. Service constraint and Pareto frontier
 
-            Cost alone selects `(1, 12)`, but its fill rate is `93.91%`. If the fulfilment centre requires at least `97%`, the feasible policy set changes and `(2, 12)` becomes the minimum-cost choice. It costs `0.46` more per day (`2.32%`) and lowers stockout probability by `4.75` percentage points.
+            Cost alone selects `(1, 12)`, but its fill rate is `93.91%`. If the fulfilment centre adopts an illustrative target of at least `97%`, the feasible policy set changes and `(2, 12)` becomes the minimum-cost choice. It costs `0.46` more per day (`2.32%`) and lowers stockout probability by `4.75` percentage points. The threshold is a scenario input, not an industry benchmark.
             """
         ),
         code(
@@ -269,9 +270,40 @@ def build_notebook() -> nbformat.NotebookNode:
         ),
         markdown(
             """
+            ## 8. Demand-distribution sensitivity
+
+            The execution manual asks for optimisation under different demand distributions. Four scenarios now separate changes in average demand from changes in variability. The cost-only optimum remains `(1, 12)` across the tested grid, but the policy needed to meet the illustrative 97% target moves from `(2, 12)` under steady or baseline demand to `(3, 12)` under volatile demand and `(4, 12)` during the promotion peak.
+            """
+        ),
+        code(
+            """
+            demand_scenarios = pd.read_csv(ROOT / "outputs" / "demand_scenario_summary.csv")
+            demand_display = demand_scenarios[
+                [
+                    "scenario",
+                    "demand_mean",
+                    "demand_variance",
+                    "best_s",
+                    "best_S",
+                    "service_s",
+                    "service_S",
+                    "exact_average_daily_cost",
+                    "exact_fill_rate",
+                    "simulation_average_daily_cost",
+                ]
+            ].copy()
+            demand_display["exact_average_daily_cost"] = demand_display["exact_average_daily_cost"].map("{:.2f}".format)
+            demand_display["simulation_average_daily_cost"] = demand_display["simulation_average_daily_cost"].map("{:.2f}".format)
+            demand_display["exact_fill_rate"] = demand_display["exact_fill_rate"].map("{:.2%}".format)
+            display(demand_display)
+            display(SVG(filename=str(ROOT / "outputs" / "figures" / "demand_scenario_comparison.svg")))
+            """
+        ),
+        markdown(
+            """
             ## Conclusion and limits
 
-            The mathematical answer depends on the question. `(1, 12)` minimises expected cost in the tested grid. `(2, 12)` is the least-cost policy that meets the 97% fill-rate target. The second answer is often the more useful operational recommendation because it makes the service promise explicit.
+            The mathematical answer depends on the question. `(1, 12)` minimises expected cost in the baseline grid. `(2, 12)` is the least-cost policy that meets the illustrative 97% fill-rate target under baseline demand. Distribution stress tests show that the service-constrained trigger must rise as demand becomes more volatile or shifts upward.
 
             The inputs are illustrative, demand is independent across days, lead time is treated as zero, shortages are lost sales, and only one SKU is modelled. A next empirical version should estimate demand from licensed transaction data and add positive lead time. AI supported review, debugging, prose editing, and visual QA; all numerical claims shown here come from executable code and tested outputs.
             """
@@ -286,7 +318,7 @@ def build_notebook() -> nbformat.NotebookNode:
         "language": "python",
         "name": "python3",
     }
-    notebook.metadata["language_info"] = {"name": "python", "version": "3.11"}
+    notebook.metadata["language_info"] = {"name": "python", "version": "3.12"}
     return notebook
 
 
