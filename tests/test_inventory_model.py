@@ -63,6 +63,16 @@ class InventoryModelTests(unittest.TestCase):
         second = simulate_policy(Policy(3, 8), periods=40, seed=19)
         self.assertTrue(first.equals(second))
 
+    def test_published_csv_rounds_insignificant_platform_noise(self) -> None:
+        first = pd.DataFrame({"metric": [1.234567890123]})
+        second = pd.DataFrame({"metric": [1.234567890124]})
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            first_path = Path(temporary_directory) / "first.csv"
+            second_path = Path(temporary_directory) / "second.csv"
+            inventory.write_stable_csv(first, first_path)
+            inventory.write_stable_csv(second, second_path)
+            self.assertEqual(first_path.read_bytes(), second_path.read_bytes())
+
     def test_simulation_discards_warmup_and_renumbers_measured_days(self) -> None:
         trace = simulate_policy(Policy(1, 12), periods=10, warmup_periods=20, seed=19)
         self.assertEqual(len(trace), 10)

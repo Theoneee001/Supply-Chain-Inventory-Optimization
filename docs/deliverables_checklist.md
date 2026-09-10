@@ -38,7 +38,7 @@
 | `report/final_report.md` | English research report source | Complete |
 | `report/final_report.pdf` | Submission-ready report | Complete and visually checked |
 | `src/inventory_model.py` | Reproducible simulation and Markov-chain code | Complete |
-| `tests/` | Model, report, and artifact-verifier regression tests | Complete: 19 tests |
+| `tests/` | Model, report, and artifact-verifier regression tests | Complete: 20 tests |
 | `.github/workflows/reproducibility.yml` | GitHub automated verification | Complete |
 | `scripts/verify_artifacts.py` | Cross-platform semantic output checks | Complete |
 | `notebooks/supply_chain_inventory_optimization.ipynb` | Executed narrative analysis | Complete and deterministic |

@@ -574,6 +574,11 @@ text {{ font-family: Arial, sans-serif; fill: #243044; }}
     path.write_text(svg, encoding="utf-8")
 
 
+def write_stable_csv(frame: pd.DataFrame, path: Path) -> None:
+    """Write published tables with cross-platform-stable floating-point text."""
+    frame.to_csv(path, index=False, float_format="%.10f", lineterminator="\n")
+
+
 def plot_inventory_path(example: pd.DataFrame, policy: Policy) -> None:
     """Plot daily demand bars and ending inventory for a representative trace."""
 
@@ -1012,13 +1017,13 @@ def main() -> None:
         ]
     )
 
-    baseline_trace.to_csv(OUTPUT_DIR / "baseline_simulation_trace.csv", index=False)
-    summary.to_csv(OUTPUT_DIR / "policy_evaluation_summary.csv", index=False)
-    sensitivity.to_csv(OUTPUT_DIR / "cost_sensitivity_summary.csv", index=False)
-    demand_scenarios.to_csv(OUTPUT_DIR / "demand_scenario_summary.csv", index=False)
-    demand_policy_results.to_csv(OUTPUT_DIR / "demand_scenario_policy_evaluation.csv", index=False)
-    decision_summary.to_csv(OUTPUT_DIR / "service_level_policy_summary.csv", index=False)
-    frontier.to_csv(OUTPUT_DIR / "policy_pareto_frontier.csv", index=False)
+    write_stable_csv(baseline_trace, OUTPUT_DIR / "baseline_simulation_trace.csv")
+    write_stable_csv(summary, OUTPUT_DIR / "policy_evaluation_summary.csv")
+    write_stable_csv(sensitivity, OUTPUT_DIR / "cost_sensitivity_summary.csv")
+    write_stable_csv(demand_scenarios, OUTPUT_DIR / "demand_scenario_summary.csv")
+    write_stable_csv(demand_policy_results, OUTPUT_DIR / "demand_scenario_policy_evaluation.csv")
+    write_stable_csv(decision_summary, OUTPUT_DIR / "service_level_policy_summary.csv")
+    write_stable_csv(frontier, OUTPUT_DIR / "policy_pareto_frontier.csv")
     assumptions = {
         "case_study": CASE_STUDY,
         "demand_scenarios": {

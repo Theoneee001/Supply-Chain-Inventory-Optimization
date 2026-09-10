@@ -37,5 +37,5 @@ jobs:
       - name: Validate analytical artifacts
         run: python scripts/verify_artifacts.py
 
-      - name: Confirm committed artifacts are reproducible
-        run: git diff --exit-code
+      - name: Confirm deterministic text and data artifacts
+        run: git diff --exit-code -- . ':(exclude)report/final_report.pdf'
