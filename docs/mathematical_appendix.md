@@ -75,6 +75,14 @@ The long-run average cost under a fixed policy is then
 C(s,S) = sum_i pi_i * g_bar(i).
 ```
 
+The implementation also retains each additive expectation separately:
+
+```text
+C(s,S) = C_fixed(s,S) + C_unit(s,S) + C_holding(s,S) + C_shortage(s,S).
+```
+
+For baseline policy `(0, 14)`, these terms are `6.0768`, `5.6717`, `5.3335`, and `2.3532`, which sum to `19.4352` after rounding. A regression test checks the unrounded identity for every published policy row.
+
 The same stationary weighting produces stockout probability, expected ending inventory, expected order quantity, and fill rate. This is a Markov reward model: the chain determines how often states occur, while the reward function assigns an operational consequence to each state-demand pair.
 
 ## 5. Finite-grid optimisation
@@ -82,17 +90,17 @@ The same stationary weighting produces stockout probability, expected ending inv
 The feasible set is explicitly declared:
 
 ```text
-s in {1, 2, 3, 4, 5, 6}
-S in {s + 2, ..., 12}.
+s in {0, 1, ..., 8}
+S in {s + 1, ..., 24}.
 ```
 
-It contains 45 policies. The unconstrained decision is
+It contains 180 policies. The unconstrained decision is
 
 ```text
-minimise C(s,S) over all 45 feasible policies.
+minimise C(s,S) over all 180 feasible policies.
 ```
 
-The program evaluates every member of the set, so `(1, 12)` is a global minimum within this grid. No gradient method or heuristic search is needed. The result does not establish optimality outside the grid or under different assumptions.
+The program evaluates every member of the set, so `(0, 14)` is a global minimum within this grid. No gradient method or heuristic search is needed. Zero is the natural lower bound on a physical reorder point. The upper limits are artificial, so a separate audit checks all 19 baseline, service, demand, and cost-sensitivity selections. Their largest selected values are `s=3` and `S=21`, below limits `8` and `24`. The generator raises an error if a selected policy touches either upper boundary. This stopping rule supports the adequacy of the finite grid but does not establish optimality over unbounded integers or under different assumptions.
 
 The illustrative service-constrained decision is
 
@@ -101,7 +109,7 @@ minimise C(s,S)
 subject to FillRate(s,S) >= 0.97.
 ```
 
-After removing policies that fail the constraint, `(2, 12)` has the lowest expected cost under baseline demand. The value `0.97` is a scenario chosen to demonstrate constrained optimisation, not an asserted industry standard. This formulation separates mathematical optimisation from management preference: the model calculates the best policy once the objective and constraint have been chosen.
+After removing policies that fail the constraint, `(2, 15)` has the lowest expected cost under baseline demand. The value `0.97` is a scenario chosen to demonstrate constrained optimisation, not an asserted industry standard. This formulation separates mathematical optimisation from management preference: the model calculates the best policy once the objective and constraint have been chosen.
 
 ## 6. Demand-distribution experiments
 
@@ -114,7 +122,7 @@ Var(D) = sum_k p_k*(d_k - E[D])^2.
 
 The steady and volatile scenarios both have `E[D] = 3.00`, but their variances are `0.90` and `4.60`. Holding the mean constant while changing the variance separates demand level from tail risk. The promotion-peak scenario changes both the level and shape, with `E[D] = 4.79` and possible demand up to eight units.
 
-For each distribution, the transition matrix is rebuilt because every `P_ij` depends on the demand probabilities. The stationary distribution, reward averages, and all 45 policy scores are then recalculated. The cost optimum remains `(1, 12)` across the four tested distributions. Under the illustrative 97% constraint, however, the minimum-cost trigger rises from two under steady or baseline demand to three under volatile demand and four during the promotion peak. This comparison shows why equal average demand does not imply equal service performance.
+For each distribution, the transition matrix is rebuilt because every `P_ij` depends on the demand probabilities. The stationary distribution, reward averages, and all 180 policy scores are then recalculated. The cost optima are `(0, 14)` for baseline and steady demand, `(1, 14)` for volatile demand, and `(2, 18)` for the promotion peak. Under the illustrative 97% constraint, the respective choices are `(2, 15)`, `(1, 16)`, `(3, 16)`, and `(3, 18)`. This comparison shows why equal average demand does not imply equal policy decisions.
 
 ## 7. Monte Carlo estimator and confidence interval
 
@@ -132,7 +140,7 @@ X_bar_a +/- 1.96 * s_a / sqrt(R),
 
 where `s_a` is the sample standard deviation of the replication means. The interval quantifies simulation uncertainty; it does not describe uncertainty in the illustrative demand probabilities or cost assumptions.
 
-Each replication discards 365 warm-up days. Without this step, every run begins at `S`, so the finite measurement window over-represents the chosen initial condition. After warm-up, the baseline simulated mean is `19.6571`, close to the stationary value `19.6568`, and the stationary result lies inside the simulated interval `[19.6053, 19.7089]`.
+Each replication discards 365 warm-up days. Without this step, every run begins at `S`, so the finite measurement window over-represents the chosen initial condition. After warm-up, the baseline simulated mean is `19.4512`, close to the stationary value `19.4352`, and the stationary result lies inside the simulated interval `[19.4020, 19.5004]`.
 
 ## 8. Common random numbers
 

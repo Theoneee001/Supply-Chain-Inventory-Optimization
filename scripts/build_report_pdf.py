@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import csv
 import re
 from html import escape
 from pathlib import Path
@@ -30,6 +31,7 @@ from svglib.svglib import svg2rlg
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / "report" / "final_report.md"
 OUTPUT = ROOT / "report" / "final_report.pdf"
+DECISIONS = ROOT / "outputs" / "service_level_policy_summary.csv"
 
 NAVY = colors.HexColor("#243044")
 TEAL = colors.HexColor("#117C75")
@@ -38,6 +40,21 @@ CORAL = colors.HexColor("#D95D4F")
 MID = colors.HexColor("#607086")
 PALE = colors.HexColor("#EEF2F5")
 WHITE = colors.white
+
+
+def load_title_metrics(
+    path: Path = DECISIONS,
+) -> tuple[tuple[int, int, float], tuple[int, int, float]]:
+    """Load title-page decisions from the generated source of truth."""
+
+    with path.open(newline="", encoding="utf-8") as handle:
+        rows = list(csv.DictReader(handle))
+    cost = next(row for row in rows if float(row["minimum_fill_rate"]) == 0.0)
+    service = next(row for row in rows if float(row["minimum_fill_rate"]) == 0.97)
+    return (
+        (int(float(cost["s"])), int(float(cost["S"])), float(cost["average_daily_cost"])),
+        (int(float(service["s"])), int(float(service["S"])), float(service["fill_rate"])),
+    )
 
 
 class ReportDocument(BaseDocTemplate):
@@ -335,6 +352,7 @@ def parse_markdown(styles: dict[str, ParagraphStyle]) -> list:
 
 
 def title_page(styles: dict[str, ParagraphStyle]) -> list:
+    cost_metric, service_metric = load_title_metrics()
     title_style = ParagraphStyle(
         "TitlePageTitle",
         parent=styles["h1"],
@@ -369,7 +387,18 @@ def title_page(styles: dict[str, ParagraphStyle]) -> list:
     metrics = Table(
         [
             [Paragraph("COST OPTIMUM", label_style), Paragraph("97% SERVICE CHOICE", label_style)],
-            [Paragraph("(s, S) = (1, 12)<br/><b>19.66 per day</b>", metric_style), Paragraph("(s, S) = (2, 12)<br/><b>97.09% fill rate</b>", metric_style)],
+            [
+                Paragraph(
+                    f"(s, S) = ({cost_metric[0]}, {cost_metric[1]})<br/>"
+                    f"<b>{cost_metric[2]:.2f} per day</b>",
+                    metric_style,
+                ),
+                Paragraph(
+                    f"(s, S) = ({service_metric[0]}, {service_metric[1]})<br/>"
+                    f"<b>{service_metric[2]:.2%} fill rate</b>",
+                    metric_style,
+                ),
+            ],
         ],
         colWidths=[78 * mm, 78 * mm],
     )

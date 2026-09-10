@@ -74,7 +74,7 @@ The September version now presents a complete workflow from mathematical model t
 - [x] Complete narrative notebook with executable analysis cells.
 - [x] Create deliverables checklist.
 
-### Next Refinement Round
+### Completed Refinements and Future Research Boundary
 
 - [x] Expand report to 3000-5000 words.
 - [x] Add literature/context paragraph on inventory management and stochastic processes.
@@ -82,7 +82,7 @@ The September version now presents a complete workflow from mathematical model t
 - [x] Add sensitivity analysis for holding cost.
 - [ ] Add positive lead time as a future research extension; it is outside the declared September baseline.
 - [x] Add top-five policy table into README and report.
-- [x] Convert report Markdown to a 14-page PDF.
+- [x] Convert report Markdown to a professionally formatted PDF.
 - [x] Add all generated figures to the report.
 - [x] Polish Notebook into a full narrative notebook.
 - [x] Prepare CV bullets and PS paragraph.
@@ -91,21 +91,21 @@ The September version now presents a complete workflow from mathematical model t
 
 Baseline grid-search result:
 
-- Best reorder point: `s = 1`
-- Best order-up-to level: `S = 12`
-- Stationary average daily cost: `19.66`
-- Stationary stockout rate: `10.69%`
-- Stationary average ending inventory: `4.71`
+- Best reorder point: `s = 0`
+- Best order-up-to level: `S = 14`
+- Stationary average daily cost: `19.4352`
+- Stationary stockout rate: `14.10%`
+- Stationary average ending inventory: `5.33`
 
 Interpretation:
 
-Under the current assumptions, larger replenishment batches are favoured because fixed ordering cost is meaningful. The policy waits until inventory is low, then replenishes to a relatively high level, balancing fewer orders against manageable stockout risk. The warm-up-adjusted Monte Carlo estimate is `19.6571`, compared with the numerically evaluated stationary Markov result of `19.6568`; the stationary value lies inside the simulated 95% interval.
+Under the current assumptions, larger replenishment batches are favoured because fixed ordering cost is meaningful. The policy waits until opening stock reaches zero, then replenishes to 14, balancing fewer orders against shortage risk. The warm-up-adjusted Monte Carlo estimate is `19.4512`, compared with the numerically evaluated stationary Markov result of `19.4352`; the stationary value lies inside the simulated 95% interval. The search covers 180 policies, and all 19 published selections remain below the artificial upper boundaries.
 
 Service-constrained result:
 
 - Minimum required fill rate: `97%`
-- Lowest-cost feasible policy: `(2, 12)`
-- Stationary average daily cost: `20.11`
-- Stationary fill rate: `97.09%`
-- Cost premium over the unconstrained optimum: `2.32%`
-- Stockout-rate reduction: `4.75` percentage points
+- Lowest-cost feasible policy: `(2, 15)`
+- Stationary average daily cost: `19.7937`
+- Stationary fill rate: `97.70%`
+- Cost premium over the unconstrained optimum: `1.84%`
+- Stockout-rate reduction: `9.40` percentage points

@@ -1,0 +1,20 @@
+analysis,scenario,s,S,distance_to_max_s,distance_to_max_S,touches_upper_boundary
+baseline cost optimum,baseline_mixed,0,14,8,10,False
+baseline 97% fill-rate choice,baseline_mixed,2,15,6,9,False
+cost sensitivity optimum,holding=0.5; shortage=4,0,19,8,5,False
+cost sensitivity optimum,holding=0.5; shortage=8,1,20,7,4,False
+cost sensitivity optimum,holding=0.5; shortage=16,2,21,6,3,False
+cost sensitivity optimum,holding=1; shortage=4,0,13,8,11,False
+cost sensitivity optimum,holding=1; shortage=8,0,14,8,10,False
+cost sensitivity optimum,holding=1; shortage=16,2,15,6,9,False
+cost sensitivity optimum,holding=2; shortage=4,0,9,8,15,False
+cost sensitivity optimum,holding=2; shortage=8,0,10,8,14,False
+cost sensitivity optimum,holding=2; shortage=16,1,11,7,13,False
+demand-scenario cost optimum,baseline_mixed,0,14,8,10,False
+demand-scenario 97% fill-rate choice,baseline_mixed,2,15,6,9,False
+demand-scenario cost optimum,steady,0,14,8,10,False
+demand-scenario 97% fill-rate choice,steady,1,16,7,8,False
+demand-scenario cost optimum,volatile,1,14,7,10,False
+demand-scenario 97% fill-rate choice,volatile,3,16,5,8,False
+demand-scenario cost optimum,promotion_peak,2,18,6,6,False
+demand-scenario 97% fill-rate choice,promotion_peak,3,18,5,6,False

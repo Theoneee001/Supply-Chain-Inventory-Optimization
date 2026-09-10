@@ -14,24 +14,25 @@ There is no single "best" policy until the business states its objective.
 
 | Decision rule | Policy | Stationary daily cost | Stockout rate | Fill rate |
 | --- | ---: | ---: | ---: | ---: |
-| Minimum expected cost in the tested grid | `(1, 12)` | `19.66` | `10.69%` | `93.91%` |
-| Minimum cost subject to fill rate >= `97%` | `(2, 12)` | `20.11` | `5.93%` | `97.09%` |
+| Minimum expected cost in the audited grid | `(0, 14)` | `19.4352` | `14.10%` | `90.60%` |
+| Minimum cost subject to fill rate >= `97%` | `(2, 15)` | `19.7937` | `4.70%` | `97.70%` |
 
-Choosing `(2, 12)` costs `0.46` more per day, a `2.32%` increase, while reducing the stockout rate by `4.75` percentage points. I would use `(1, 12)` when the stated objective is cost alone. If the illustrative 97% fill-rate target is adopted, `(2, 12)` is the defensible baseline recommendation. The target is a decision scenario, not an industry benchmark.
+Choosing `(2, 15)` costs `0.3585` more per day, a `1.84%` increase, while reducing the stockout rate by `9.40` percentage points. I would use `(0, 14)` only when the stated objective is expected cost alone. If the illustrative 97% fill-rate target is adopted, `(2, 15)` is the defensible baseline recommendation. The target is a decision scenario, not an industry benchmark.
 
 ![Cost-service Pareto frontier](outputs/figures/cost_service_frontier.svg)
 
 ## What "Optimal" Means Here
 
-The program evaluates all 45 feasible policies in a declared finite grid:
+The program evaluates all 180 feasible policies in a declared finite grid:
 
-- reorder point `s` ranges from `1` to `6`;
-- order-up-to level `S` ranges from `s + 2` to `12`;
+- reorder point `s` ranges from its natural lower bound `0` to `8`;
+- order-up-to level `S` ranges from `s + 1` to `24`, so every integer pair with `S > s` is included;
 - the stationary long-run expected daily cost scores each policy;
 - an optional fill-rate constraint removes policies that do not meet the service target;
-- the program chooses the lowest-cost remaining policy.
+- the program chooses the lowest-cost remaining policy;
+- a boundary audit stops publication if any reported selection reaches `s=8` or `S=24`.
 
-The word *optimal* therefore means **lowest expected cost among the tested policies under the stated demand and cost assumptions**. It does not mean that `(1, 12)` is universally correct for every product or retailer.
+The word *optimal* therefore means **lowest expected cost among the tested policies under the stated demand and cost assumptions**. Across 19 baseline, service, demand, and cost-sensitivity selections, the largest chosen values are `s=3` and `S=21`, leaving clear margins below both artificial upper limits. It does not mean that `(0, 14)` is universally correct for every product or retailer.
 
 ## Mathematical Model
 
@@ -57,33 +58,33 @@ pi = pi P,    sum_i pi_i = 1.
 
 The stationary long-run cost is the stationary-probability-weighted expected one-day cost. Power iteration evaluates the finite model to a tolerance of `1e-14`. This connects an operational decision to undergraduate ideas from discrete probability, matrices, stochastic processes, expectation, convergence, and optimisation. The full derivation is in [docs/mathematical_appendix.md](docs/mathematical_appendix.md).
 
-## Validation, Not Just Simulation
+## Validation Against Simulation
 
 The Markov calculation is deterministic for the stated finite model up to the declared numerical tolerance. Monte Carlo simulation independently checks the code.
 
 Every policy receives the same demand-path seeds through a common-random-numbers design. Each replication discards `365` warm-up days before measuring the next `365` days, which removes the finite-horizon bias caused by always starting at full inventory. The experiment uses `200` replications per policy.
 
-| Validation metric for `(1, 12)` | Result |
+| Validation metric for `(0, 14)` | Result |
 | --- | ---: |
-| Stationary Markov cost | `19.6568` |
-| Simulated mean cost | `19.6571` |
-| Simulated 95% interval | `[19.6053, 19.7089]` |
-| Absolute difference | `0.0003` |
+| Stationary Markov cost | `19.4352` |
+| Simulated mean cost | `19.4512` |
+| Simulated 95% interval | `[19.4020, 19.5004]` |
+| Absolute difference | `0.0160` |
 
-The stationary value falls inside the simulated interval. A regression test protects this result from future changes.
+The stationary value falls inside the simulated interval. The expected total also reconciles to four visible components: fixed ordering `6.0768`, unit ordering `5.6717`, holding `5.3335`, and shortage `2.3532`. The publication verifier independently solves all 720 stationary systems as linear equations and repeats all 19 decisions on a larger 442-policy grid (`s <= 12`, `S <= 40`). Regression tests protect the interval check and cost identity. The runner-up `(1, 14)` is only `0.0031` per day more expensive, so the ranking is exact for these inputs but should be recalibrated with real data.
 
 ## Four Demand Distributions
 
-The execution manual calls for optimisation under different demand distributions. The model now repeats the complete 45-policy search under baseline mixed, steady, volatile, and promotion-peak demand, producing `180` auditable scenario-policy rows. Steady and volatile demand both average `3.00` units per day, but their variances are `0.90` and `4.60`. This separates average demand from tail risk.
+The execution manual calls for optimisation under different demand distributions. The model repeats the complete 180-policy search under baseline mixed, steady, volatile, and promotion-peak demand, producing `720` auditable scenario-policy rows. Steady and volatile demand both average `3.00` units per day, but their variances are `0.90` and `4.60`. This separates average demand from tail risk.
 
 | Scenario | Mean | Variance | Cost optimum | 97% service choice | Cost-optimum fill rate |
 | --- | ---: | ---: | --- | --- | ---: |
-| Baseline mixed | 3.13 | 2.43 | `(1, 12)` | `(2, 12)` | 93.91% |
-| Steady | 3.00 | 0.90 | `(1, 12)` | `(2, 12)` | 96.01% |
-| Volatile | 3.00 | 4.60 | `(1, 12)` | `(3, 12)` | 92.18% |
-| Promotion peak | 4.79 | 3.07 | `(1, 12)` | `(4, 12)` | 89.57% |
+| Baseline mixed | 3.13 | 2.43 | `(0, 14)` | `(2, 15)` | 90.60% |
+| Steady | 3.00 | 0.90 | `(0, 14)` | `(1, 16)` | 92.38% |
+| Volatile | 3.00 | 4.60 | `(1, 14)` | `(3, 16)` | 92.72% |
+| Promotion peak | 4.79 | 3.07 | `(2, 18)` | `(3, 18)` | 95.49% |
 
-The cost optimum remains stable, while the service-constrained trigger rises as demand becomes more volatile or shifts upward. Each cost optimum is independently checked with 200 warm-up-adjusted Monte Carlo replications.
+Both cost and service choices respond to the demand distribution. Each cost optimum is independently checked with 200 warm-up-adjusted Monte Carlo replications.
 
 ![Demand-distribution stress test](outputs/figures/demand_scenario_comparison.svg)
 
@@ -91,13 +92,13 @@ The cost optimum remains stable, while the service-constrained trigger rises as 
 
 ### Complete policy search
 
-The gold outline marks the unconstrained cost minimum. The rule `S >= s + 2` excludes blank cells.
+The gold outline marks the unconstrained cost minimum. Blank cells violate the standard requirement `S > s`.
 
 ![Stationary cost heatmap](outputs/figures/policy_cost_heatmap.svg)
 
 ### Steady-state operating trace
 
-This chart shows a 90-day trace after the warm-up period under `(1, 12)`. Inventory falls with demand and returns to `12` once stock reaches the reorder trigger.
+This chart shows a 90-day trace after the warm-up period under `(0, 14)`. Inventory falls with demand and returns to `14` when opening stock reaches zero.
 
 ![Inventory and demand trace](outputs/figures/inventory_path.svg)
 
@@ -122,6 +123,7 @@ Higher shortage cost moves the trigger upward; higher holding cost favours a low
 | Non-dominated choices | [outputs/policy_pareto_frontier.csv](outputs/policy_pareto_frontier.csv) |
 | Nine cost scenarios | [outputs/cost_sensitivity_summary.csv](outputs/cost_sensitivity_summary.csv) |
 | Four demand distributions | [outputs/demand_scenario_summary.csv](outputs/demand_scenario_summary.csv) and [outputs/demand_scenario_policy_evaluation.csv](outputs/demand_scenario_policy_evaluation.csv) |
+| Search-space stopping rule | [outputs/search_boundary_audit.csv](outputs/search_boundary_audit.csv) |
 | Demand and cost settings | [outputs/model_assumptions.json](outputs/model_assumptions.json) |
 | Generated interpretation | [outputs/analysis_summary.md](outputs/analysis_summary.md) |
 | Complete academic discussion | [report/final_report.md](report/final_report.md) and `report/final_report.pdf` |

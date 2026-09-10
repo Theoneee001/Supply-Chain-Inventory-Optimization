@@ -13,11 +13,11 @@
 
 ## Final Submission-Ready Deliverables
 
-- [x] Report exported as a 14-page PDF with contents, figures, tables, and references.
+- [x] Report exported as a submission-ready PDF with contents, figures, tables, and references.
 - [x] Jupyter Notebook contains narrative explanation, executable cells, and saved outputs.
 - [x] Code is reproducible with a fixed random seed.
 - [x] Six vector figures are labelled and visually checked.
-- [x] Four valid demand distributions are compared across the same 45-policy grid.
+- [x] Four valid demand distributions are compared across the same 180-policy grid.
 - [x] The English report contains 3000-5000 words of prose under the repository's documented counting rule.
 - [x] Direct Python dependencies are pinned in `requirements-lock.txt` and used by CI.
 - [x] README includes result figures.
@@ -38,12 +38,13 @@
 | `report/final_report.md` | English research report source | Complete |
 | `report/final_report.pdf` | Submission-ready report | Complete and visually checked |
 | `src/inventory_model.py` | Reproducible simulation and Markov-chain code | Complete |
-| `tests/` | Model, notebook, report, and artifact-verifier regression tests | Complete: 22 tests |
+| `tests/` | Model, notebook, report, and artifact-verifier regression tests | Complete automated suite |
 | `.github/workflows/reproducibility.yml` | GitHub automated verification | Complete |
 | `scripts/verify_artifacts.py` | Cross-platform semantic output checks | Complete |
 | `notebooks/supply_chain_inventory_optimization.ipynb` | Executed narrative analysis | Complete and deterministic |
 | `outputs/demand_scenario_summary.csv` | Selected decisions under four demand distributions | Complete |
-| `outputs/demand_scenario_policy_evaluation.csv` | Full scenario-policy evidence | Complete: 180 rows |
+| `outputs/demand_scenario_policy_evaluation.csv` | Full scenario-policy evidence | Complete: 720 rows |
+| `outputs/search_boundary_audit.csv` | Search-space stopping-rule evidence | Complete: 19 decisions pass |
 | `outputs/figures/` | Vector visual outputs | Six figures generated |
 | `docs/mathematical_appendix.md` | Detailed derivation and assumptions | Complete |
 | `docs/application_materials.md` | CV, PS, interview, and LinkedIn material | Complete |
@@ -52,10 +53,11 @@
 
 ## Evidence-Based Quality Checks
 
-- The 45-policy search is exhaustive within the declared grid.
-- The stationary cost for `(1, 12)` is `19.6568`; the warm-up-adjusted simulation estimate is `19.6571` with 95% interval `[19.6053, 19.7089]`.
-- The illustrative 97% fill-rate decision is `(2, 12)` under baseline demand, with `97.09%` fill rate and `20.11` expected daily cost.
-- The four demand scenarios produce 180 auditable policy-scenario rows. The cost optimum stays `(1, 12)`, while the illustrative 97% reorder point rises as high as `4` in the promotion-peak case.
+- The 180-policy search is exhaustive within the declared grid.
+- The stationary cost for `(0, 14)` is `19.4352`; the warm-up-adjusted simulation estimate is `19.4512` with 95% interval `[19.4020, 19.5004]`.
+- The illustrative 97% fill-rate decision is `(2, 15)` under baseline demand, with `97.70%` fill rate and `19.7937` expected daily cost.
+- The four demand scenarios produce 720 auditable policy-scenario rows; cost optima range from `(0, 14)` to `(2, 18)`.
+- All 19 reported selections avoid the artificial upper limits; the smallest margins are 5 units for `s` and 3 units for `S`.
 - The case study is category-neutral by design and makes no claim about a specific ecommerce product category.
 - The Notebook produces the same file hash on consecutive executions.
 - Application claims point to a named repository file rather than unsupported narrative.

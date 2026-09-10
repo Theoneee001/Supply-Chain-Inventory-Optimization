@@ -24,6 +24,9 @@ ROOT = Path(__file__).resolve().parents[1]
 OUTPUT_DIR = ROOT / "outputs"
 FIGURE_DIR = OUTPUT_DIR / "figures"
 SERVICE_FILL_RATE_TARGET = 0.97
+POLICY_GRID_MIN_REORDER_POINT = 0
+POLICY_GRID_MAX_REORDER_POINT = 8
+POLICY_GRID_MAX_ORDER_UP_TO = 24
 CASE_STUDY = {
     "business": "illustrative ecommerce fulfilment centre",
     "product_scope": "one generic non-perishable SKU",
@@ -256,6 +259,10 @@ def markov_policy_metrics(
     distribution = stationary_distribution(build_transition_matrix(policy, demand_scenario))
 
     expected_cost = 0.0
+    expected_fixed_order_cost = 0.0
+    expected_unit_order_cost = 0.0
+    expected_holding_cost = 0.0
+    expected_shortage_cost = 0.0
     expected_stockout = 0.0
     expected_demand = 0.0
     expected_sales = 0.0
@@ -270,6 +277,10 @@ def markov_policy_metrics(
             if order_quantity > 0
             else 0.0
         )
+        expected_fixed_order_cost += (
+            state_probability * costs.order_fixed_cost * float(order_quantity > 0)
+        )
+        expected_unit_order_cost += state_probability * costs.order_unit_cost * order_quantity
         expected_order_quantity += state_probability * order_quantity
         expected_order_frequency += state_probability * float(order_quantity > 0)
 
@@ -281,6 +292,8 @@ def markov_policy_metrics(
             expected_cost += probability * (
                 order_cost + costs.holding_cost * ending_inventory + costs.shortage_cost * shortage
             )
+            expected_holding_cost += probability * costs.holding_cost * ending_inventory
+            expected_shortage_cost += probability * costs.shortage_cost * shortage
             expected_stockout += probability * float(shortage > 0)
             expected_demand += probability * demand
             expected_sales += probability * sales
@@ -288,6 +301,10 @@ def markov_policy_metrics(
 
     return {
         "average_daily_cost": expected_cost,
+        "average_fixed_order_cost": expected_fixed_order_cost,
+        "average_unit_order_cost": expected_unit_order_cost,
+        "average_holding_cost": expected_holding_cost,
+        "average_shortage_cost": expected_shortage_cost,
         "stockout_rate": expected_stockout,
         "fill_rate": expected_sales / expected_demand if expected_demand else 1.0,
         "average_ending_inventory": expected_ending_inventory,
@@ -353,6 +370,10 @@ def evaluate_policies(
                 "s": policy.reorder_point,
                 "S": policy.order_up_to,
                 "average_daily_cost": exact["average_daily_cost"],
+                "average_fixed_order_cost": exact["average_fixed_order_cost"],
+                "average_unit_order_cost": exact["average_unit_order_cost"],
+                "average_holding_cost": exact["average_holding_cost"],
+                "average_shortage_cost": exact["average_shortage_cost"],
                 "stockout_rate": exact["stockout_rate"],
                 "fill_rate": exact["fill_rate"],
                 "average_ending_inventory": exact["average_ending_inventory"],
@@ -378,14 +399,45 @@ def evaluate_policies(
     return pd.DataFrame(rows).sort_values("average_daily_cost", ignore_index=True)
 
 
-def policy_grid(minimum_s: int = 1, maximum_s: int = 6, maximum_S: int = 12) -> list[Policy]:
+def policy_grid(
+    minimum_s: int = POLICY_GRID_MIN_REORDER_POINT,
+    maximum_s: int = POLICY_GRID_MAX_REORDER_POINT,
+    maximum_S: int = POLICY_GRID_MAX_ORDER_UP_TO,
+) -> list[Policy]:
     """Create the feasible policy set used in the baseline experiment."""
 
     return [
         Policy(reorder_point=s, order_up_to=S)
         for s in range(minimum_s, maximum_s + 1)
-        for S in range(s + 2, maximum_S + 1)
+        for S in range(s + 1, maximum_S + 1)
     ]
+
+
+def audit_policy_search_boundaries(
+    selected_policies: pd.DataFrame,
+    maximum_s: int = POLICY_GRID_MAX_REORDER_POINT,
+    maximum_S: int = POLICY_GRID_MAX_ORDER_UP_TO,
+) -> pd.DataFrame:
+    """Verify that no reported choice is created by an artificial upper limit."""
+
+    required_columns = {"analysis", "s", "S"}
+    missing_columns = required_columns.difference(selected_policies.columns)
+    if missing_columns:
+        raise ValueError(f"Boundary audit is missing columns: {sorted(missing_columns)}")
+    audited = selected_policies.copy()
+    audited["distance_to_max_s"] = maximum_s - audited["s"]
+    audited["distance_to_max_S"] = maximum_S - audited["S"]
+    audited["touches_upper_boundary"] = (
+        (audited["s"] >= maximum_s) | (audited["S"] >= maximum_S)
+    )
+    boundary_rows = audited.loc[audited["touches_upper_boundary"]]
+    if not boundary_rows.empty:
+        analyses = ", ".join(boundary_rows["analysis"].astype(str))
+        raise ValueError(
+            "Selected policy touches an artificial upper boundary; expand the grid before "
+            f"publishing: {analyses}."
+        )
+    return audited
 
 
 def select_policy(summary: pd.DataFrame, minimum_fill_rate: float | None = None) -> pd.Series:
@@ -630,9 +682,10 @@ def plot_inventory_path(example: pd.DataFrame, policy: Policy) -> None:
 def plot_policy_comparison(summary: pd.DataFrame) -> None:
     """Plot stationary long-run daily cost for every tested (s, S) combination."""
 
-    width, height = 780, 480
-    left, top, cell_width, cell_height = 90, 80, 58, 46
     pivot = summary.pivot(index="s", columns="S", values="average_daily_cost")
+    left, top, cell_width, cell_height = 90, 80, 40, 36
+    width = left + len(pivot.columns) * cell_width + 70
+    height = top + len(pivot.index) * cell_height + 105
     minimum_cost = float(pivot.min().min())
     maximum_cost = float(pivot.max().max())
     best = summary.iloc[0]
@@ -654,25 +707,25 @@ def plot_policy_comparison(summary: pd.DataFrame) -> None:
                 f'<rect x="{x}" y="{y}" width="{cell_width - 2}" height="{cell_height - 2}" fill="{fill}" stroke="{border}" stroke-width="{border_width}"/>'
             )
             if label:
-                cells.append(f'<text x="{x + 10}" y="{y + 28}" class="tick">{label}</text>')
+                cells.append(f'<text x="{x + 6}" y="{y + 23}" class="tick">{label}</text>')
 
     x_labels = "".join(
-        f'<text x="{left + index * cell_width + 18}" y="{top - 12}" class="tick">{column}</text>'
+        f'<text x="{left + index * cell_width + 11}" y="{top - 12}" class="tick">{column}</text>'
         for index, column in enumerate(pivot.columns)
     )
     y_labels = "".join(
-        f'<text x="{left - 28}" y="{top + index * cell_height + 28}" class="tick">{row}</text>'
+        f'<text x="{left - 28}" y="{top + index * cell_height + 23}" class="tick">{row}</text>'
         for index, row in enumerate(pivot.index)
     )
     body = f"""
 <text x="{left}" y="38" class="title">Stationary Long-Run Average Daily Cost Across (s, S) Policies</text>
-<text x="{left + 220}" y="386" class="label">Order-up-to level S</text>
-<text x="26" y="285" class="label" transform="rotate(-90 26,285)">Reorder point s</text>
+<text x="{width / 2 - 60}" y="{height - 55}" class="label">Order-up-to level S</text>
+<text x="26" y="{height / 2}" class="label" transform="rotate(-90 26,{height / 2})">Reorder point s</text>
 {x_labels}
 {y_labels}
 {''.join(cells)}
-<text x="{left}" y="420" class="annotation">Gold outline: cost-optimal policy ({int(best['s'])}, {int(best['S'])}). Darker cells indicate lower cost.</text>
-<text x="{left}" y="442" class="tick">Blank cells are excluded by the search rule S &gt;= s + 2.</text>
+<text x="{left}" y="{height - 28}" class="annotation">Gold outline: cost-optimal policy ({int(best['s'])}, {int(best['S'])}). Darker cells indicate lower cost.</text>
+<text x="{left}" y="{height - 9}" class="tick">Blank cells are infeasible because an (s, S) policy requires S &gt; s.</text>
 """
     _write_svg(FIGURE_DIR / "policy_cost_heatmap.svg", body, width, height)
 
@@ -864,7 +917,7 @@ def plot_demand_scenario_comparison(scenarios: pd.DataFrame) -> None:
 
     body = f"""
 <text x="56" y="38" class="title">Demand-Distribution Stress Test</text>
-<text x="56" y="62" class="tick">Costs and the 45-policy search grid are held constant; each selected policy is checked by simulation.</text>
+<text x="56" y="62" class="tick">Costs and the {len(policy_grid())}-policy search grid are held constant; each selected policy is checked by simulation.</text>
 <text x="56" y="91" class="label">Demand scenario</text>
 <text x="240" y="91" class="label">Selected policies</text>
 <text x="{bar_left}" y="91" class="label">Expected daily cost</text>
@@ -882,6 +935,7 @@ def write_run_summary(
     demand_scenarios: pd.DataFrame,
     cost_optimum: pd.Series,
     service_policy: pd.Series,
+    search_audit: pd.DataFrame,
     periods: int,
     replications: int,
     warmup_periods: int,
@@ -896,6 +950,8 @@ def write_run_summary(
         <= cost_optimum["average_daily_cost"]
         <= cost_optimum["simulation_cost_95_ci_high"]
     )
+    maximum_selected_s = int(search_audit["s"].max())
+    maximum_selected_S = int(search_audit["S"].max())
     sensitivity_lines = "\n".join(
         f"| {row.holding_cost:g} | {row.shortage_cost:g} | ({int(row.best_s)}, {int(row.best_S)}) | {row.best_average_daily_cost:.2f} | {row.best_stockout_rate:.2%} |"
         for row in sensitivity.itertuples(index=False)
@@ -913,6 +969,8 @@ This file is generated by `python3 src/inventory_model.py`. It records the stati
 The illustrative case is an ecommerce fulfilment centre replenishing one generic non-perishable SKU from a nearby central warehouse. The product category is intentionally unspecified. The inputs are transparent teaching assumptions, not company observations.
 
 The program answers two different questions: which tested policy has the lowest expected cost, and which has the lowest cost while achieving at least a {SERVICE_FILL_RATE_TARGET:.0%} fill rate?
+
+The finite search contains {len(summary)} policies with `s` from {POLICY_GRID_MIN_REORDER_POINT} to {POLICY_GRID_MAX_REORDER_POINT} and `S` up to {POLICY_GRID_MAX_ORDER_UP_TO}. Across the baseline, demand-distribution, service, and cost-sensitivity decisions, the largest selected values are `s={maximum_selected_s}` and `S={maximum_selected_S}`. Neither reaches an artificial upper boundary, so the published grid has margins of {POLICY_GRID_MAX_REORDER_POINT - maximum_selected_s} and {POLICY_GRID_MAX_ORDER_UP_TO - maximum_selected_S} units respectively. This is a finite-grid adequacy check, not a proof over every unbounded integer policy.
 
 ## Cost-Optimal Policy
 
@@ -1016,6 +1074,48 @@ def main() -> None:
             },
         ]
     )
+    audit_rows: list[dict[str, float | str]] = [
+        {
+            "analysis": "baseline cost optimum",
+            "scenario": "baseline_mixed",
+            "s": int(cost_optimum["s"]),
+            "S": int(cost_optimum["S"]),
+        },
+        {
+            "analysis": "baseline 97% fill-rate choice",
+            "scenario": "baseline_mixed",
+            "s": int(service_policy["s"]),
+            "S": int(service_policy["S"]),
+        },
+    ]
+    audit_rows.extend(
+        {
+            "analysis": "cost sensitivity optimum",
+            "scenario": f"holding={row.holding_cost:g}; shortage={row.shortage_cost:g}",
+            "s": int(row.best_s),
+            "S": int(row.best_S),
+        }
+        for row in sensitivity.itertuples(index=False)
+    )
+    for row in demand_scenarios.itertuples(index=False):
+        audit_rows.append(
+            {
+                "analysis": "demand-scenario cost optimum",
+                "scenario": row.scenario,
+                "s": int(row.best_s),
+                "S": int(row.best_S),
+            }
+        )
+        if not pd.isna(row.service_s):
+            audit_rows.append(
+                {
+                    "analysis": "demand-scenario 97% fill-rate choice",
+                    "scenario": row.scenario,
+                    "s": int(row.service_s),
+                    "S": int(row.service_S),
+                }
+            )
+    search_audit = audit_policy_search_boundaries(pd.DataFrame(audit_rows))
 
     write_stable_csv(baseline_trace, OUTPUT_DIR / "baseline_simulation_trace.csv")
     write_stable_csv(summary, OUTPUT_DIR / "policy_evaluation_summary.csv")
@@ -1024,6 +1124,7 @@ def main() -> None:
     write_stable_csv(demand_policy_results, OUTPUT_DIR / "demand_scenario_policy_evaluation.csv")
     write_stable_csv(decision_summary, OUTPUT_DIR / "service_level_policy_summary.csv")
     write_stable_csv(frontier, OUTPUT_DIR / "policy_pareto_frontier.csv")
+    write_stable_csv(search_audit, OUTPUT_DIR / "search_boundary_audit.csv")
     assumptions = {
         "case_study": CASE_STUDY,
         "demand_scenarios": {
@@ -1046,10 +1147,23 @@ def main() -> None:
         "optimisation": {
             "method": "exhaustive enumeration over a finite policy grid",
             "objective": "minimise numerically evaluated stationary long-run expected daily cost",
-            "reorder_points": list(range(1, 7)),
-            "order_up_to_rule": "S ranges from s + 2 through 12",
+            "reorder_points": list(
+                range(POLICY_GRID_MIN_REORDER_POINT, POLICY_GRID_MAX_REORDER_POINT + 1)
+            ),
+            "order_up_to_rule": (
+                f"S ranges from s + 1 through {POLICY_GRID_MAX_ORDER_UP_TO}"
+            ),
             "tested_policy_count": len(policies),
             "service_fill_rate_target": SERVICE_FILL_RATE_TARGET,
+            "search_boundary_audit": {
+                "rule": "no selected policy may touch either artificial upper boundary",
+                "maximum_selected_reorder_point": int(search_audit["s"].max()),
+                "maximum_selected_order_up_to": int(search_audit["S"].max()),
+                "reorder_point_upper_margin": int(search_audit["distance_to_max_s"].min()),
+                "order_up_to_upper_margin": int(search_audit["distance_to_max_S"].min()),
+                "natural_reorder_point_lower_bound": POLICY_GRID_MIN_REORDER_POINT,
+                "status": "passed",
+            },
         },
     }
     (OUTPUT_DIR / "model_assumptions.json").write_text(json.dumps(assumptions, indent=2), encoding="utf-8")
@@ -1066,6 +1180,7 @@ def main() -> None:
         demand_scenarios,
         cost_optimum,
         service_policy,
+        search_audit,
         arguments.periods,
         arguments.replications,
         arguments.warmup_periods,

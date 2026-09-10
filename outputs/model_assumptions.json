@@ -119,15 +119,27 @@
     "method": "exhaustive enumeration over a finite policy grid",
     "objective": "minimise numerically evaluated stationary long-run expected daily cost",
     "reorder_points": [
+      0,
       1,
       2,
       3,
       4,
       5,
-      6
+      6,
+      7,
+      8
     ],
-    "order_up_to_rule": "S ranges from s + 2 through 12",
-    "tested_policy_count": 45,
-    "service_fill_rate_target": 0.97
+    "order_up_to_rule": "S ranges from s + 1 through 24",
+    "tested_policy_count": 180,
+    "service_fill_rate_target": 0.97,
+    "search_boundary_audit": {
+      "rule": "no selected policy may touch either artificial upper boundary",
+      "maximum_selected_reorder_point": 3,
+      "maximum_selected_order_up_to": 21,
+      "reorder_point_upper_margin": 5,
+      "order_up_to_upper_margin": 3,
+      "natural_reorder_point_lower_bound": 0,
+      "status": "passed"
+    }
   }
 }

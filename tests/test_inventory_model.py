@@ -123,6 +123,16 @@ class InventoryModelTests(unittest.TestCase):
         )
         self.assertAlmostEqual(float(trace["total_cost"].mean()), exact["average_daily_cost"], delta=0.2)
 
+    def test_markov_cost_components_sum_to_total_cost(self) -> None:
+        metrics = markov_policy_metrics(Policy(0, 14))
+        components = (
+            metrics["average_fixed_order_cost"]
+            + metrics["average_unit_order_cost"]
+            + metrics["average_holding_cost"]
+            + metrics["average_shortage_cost"]
+        )
+        self.assertAlmostEqual(components, metrics["average_daily_cost"], places=10)
+
     def test_invalid_policy_is_rejected(self) -> None:
         with self.assertRaises(ValueError):
             simulate_policy(Policy(4, 4), periods=10)
@@ -131,8 +141,38 @@ class InventoryModelTests(unittest.TestCase):
         summary = self.exact_policy_summary()
         unconstrained = select_policy(summary)
         service_constrained = select_policy(summary, minimum_fill_rate=0.97)
-        self.assertEqual((int(unconstrained["s"]), int(unconstrained["S"])), (1, 12))
-        self.assertEqual((int(service_constrained["s"]), int(service_constrained["S"])), (2, 12))
+        self.assertEqual((int(unconstrained["s"]), int(unconstrained["S"])), (0, 14))
+        self.assertEqual((int(service_constrained["s"]), int(service_constrained["S"])), (2, 15))
+
+    def test_default_grid_has_an_auditable_margin_above_selected_policies(self) -> None:
+        policies = policy_grid()
+        summary = self.exact_policy_summary()
+        unconstrained = select_policy(summary)
+        service_constrained = select_policy(summary, minimum_fill_rate=0.97)
+
+        self.assertEqual(len(policies), 180)
+        self.assertEqual(min(policy.reorder_point for policy in policies), 0)
+        self.assertEqual(max(policy.reorder_point for policy in policies), 8)
+        self.assertEqual(max(policy.order_up_to for policy in policies), 24)
+        self.assertLess(int(unconstrained["s"]), 8)
+        self.assertLess(int(unconstrained["S"]), 24)
+        self.assertLess(int(service_constrained["s"]), 8)
+        self.assertLess(int(service_constrained["S"]), 24)
+
+    def test_search_boundary_audit_rejects_an_artificial_upper_boundary(self) -> None:
+        audit = getattr(inventory, "audit_policy_search_boundaries", None)
+        self.assertIsNotNone(audit, "audit_policy_search_boundaries must be implemented")
+        if audit is None:
+            return
+
+        selected = pd.DataFrame(
+            [
+                {"analysis": "interior", "s": 2, "S": 15},
+                {"analysis": "boundary", "s": 3, "S": 24},
+            ]
+        )
+        with self.assertRaisesRegex(ValueError, "upper boundary"):
+            audit(selected, maximum_s=8, maximum_S=24)
 
     def test_policy_selection_rejects_an_infeasible_fill_rate(self) -> None:
         with self.assertRaises(ValueError):
@@ -165,8 +205,8 @@ class InventoryModelTests(unittest.TestCase):
             with patch("inventory_model.FIGURE_DIR", Path(temporary_directory)):
                 plot_service_frontier(summary, frontier, cost_optimum, service_policy)
             figure = Path(temporary_directory, "cost_service_frontier.svg").read_text(encoding="utf-8")
-        self.assertIn("Cost optimum (1, 12)", figure)
-        self.assertIn("97% fill-rate choice (2, 12)", figure)
+        self.assertIn("Cost optimum (0, 14)", figure)
+        self.assertIn("97% fill-rate choice (2, 15)", figure)
 
     def test_declared_demand_scenarios_are_valid_and_distinct(self) -> None:
         scenarios = getattr(inventory, "DEMAND_SCENARIOS", None)

@@ -8,48 +8,50 @@ The illustrative case is an ecommerce fulfilment centre replenishing one generic
 
 The program answers two different questions: which tested policy has the lowest expected cost, and which has the lowest cost while achieving at least a 97% fill rate?
 
+The finite search contains 180 policies with `s` from 0 to 8 and `S` up to 24. Across the baseline, demand-distribution, service, and cost-sensitivity decisions, the largest selected values are `s=3` and `S=21`. Neither reaches an artificial upper boundary, so the published grid has margins of 5 and 3 units respectively. This is a finite-grid adequacy check, not a proof over every unbounded integer policy.
+
 ## Cost-Optimal Policy
 
-The lowest-cost policy in the tested grid is **(1, 12)**.
+The lowest-cost policy in the tested grid is **(0, 14)**.
 
 | Metric | Stationary Markov result | Monte Carlo validation |
 | --- | ---: | ---: |
-| Average daily cost | 19.66 | 19.66 |
-| 95% CI for simulated cost | - | [19.61, 19.71] |
-| Stockout rate | 10.69% | 10.69% |
-| Fill rate | 93.91% | 93.88% |
-| Average ending inventory | 4.71 | 4.70 |
+| Average daily cost | 19.44 | 19.45 |
+| 95% CI for simulated cost | - | [19.40, 19.50] |
+| Stockout rate | 14.10% | 14.21% |
+| Fill rate | 90.60% | 90.65% |
+| Average ending inventory | 5.33 | 5.34 |
 
-Each simulation replication discards 365 warm-up days before measuring 365 days. Across 200 replications, the numerically evaluated stationary Markov cost falls inside the simulated 95% interval. The absolute difference between the two estimates is 0.000 currency units per day.
+Each simulation replication discards 365 warm-up days before measuring 365 days. Across 200 replications, the numerically evaluated stationary Markov cost falls inside the simulated 95% interval. The absolute difference between the two estimates is 0.016 currency units per day.
 
-The lowest-stockout policy in the tested grid is (5, 12); it has a 0.00% stockout rate but a higher average daily cost of 23.76. This makes the cost-service trade-off explicit rather than treating the low-cost choice as universally best.
+The lowest-stockout policy in the tested grid is (5, 17); it has a 0.00% stockout rate but a higher average daily cost of 22.27. This makes the cost-service trade-off explicit rather than treating the low-cost choice as universally best.
 
 ## Service-Constrained Policy
 
-Among policies with a fill rate of at least 97%, the lowest-cost choice is **(2, 12)**. Its stationary daily cost is 20.11, fill rate is 97.09%, and stockout rate is 5.93%.
+Among policies with a fill rate of at least 97%, the lowest-cost choice is **(2, 15)**. Its stationary daily cost is 19.79, fill rate is 97.70%, and stockout rate is 4.70%.
 
-Compared with the unconstrained minimum, this choice costs 0.46 more per day (2.32%) while reducing the stockout rate by 4.75 percentage points. This recommendation applies only when the illustrative 97% target is adopted; the threshold is not an industry benchmark.
+Compared with the unconstrained minimum, this choice costs 0.36 more per day (1.84%) while reducing the stockout rate by 9.40 percentage points. This recommendation applies only when the illustrative 97% target is adopted; the threshold is not an industry benchmark.
 
 ## Demand-Distribution Sensitivity
 
 | Scenario | Mean demand | Demand variance | Cost optimum | 97% choice | Expected daily cost | Fill rate |
 | --- | ---: | ---: | --- | --- | ---: | ---: |
-| Baseline Mixed | 3.13 | 2.43 | (1, 12) | (2, 12) | 19.66 | 93.91% |
-| Steady | 3.00 | 0.90 | (1, 12) | (2, 12) | 18.76 | 96.01% |
-| Volatile | 3.00 | 4.60 | (1, 12) | (3, 12) | 19.52 | 92.18% |
-| Promotion Peak | 4.79 | 3.07 | (1, 12) | (4, 12) | 27.23 | 89.57% |
+| Baseline Mixed | 3.13 | 2.43 | (0, 14) | (2, 15) | 19.44 | 90.60% |
+| Steady | 3.00 | 0.90 | (0, 14) | (1, 16) | 18.58 | 92.38% |
+| Volatile | 3.00 | 4.60 | (1, 14) | (3, 16) | 19.37 | 92.72% |
+| Promotion Peak | 4.79 | 3.07 | (2, 18) | (3, 18) | 25.72 | 95.49% |
 
 ## Cost Sensitivity
 
 | Holding cost | Shortage cost | Best policy | Average daily cost | Stockout rate |
 | ---: | ---: | --- | ---: | ---: |
-| 0.5 | 4 | (1, 12) | 16.54 | 10.69% |
-| 0.5 | 8 | (1, 12) | 17.30 | 10.69% |
-| 0.5 | 16 | (2, 12) | 18.29 | 5.93% |
-| 1 | 4 | (1, 12) | 18.89 | 10.69% |
-| 1 | 8 | (1, 12) | 19.66 | 10.69% |
-| 1 | 16 | (2, 12) | 20.84 | 5.93% |
-| 2 | 4 | (1, 10) | 23.19 | 12.61% |
-| 2 | 8 | (1, 10) | 24.08 | 12.61% |
+| 0.5 | 4 | (0, 19) | 15.18 | 10.66% |
+| 0.5 | 8 | (1, 20) | 15.88 | 6.50% |
+| 0.5 | 16 | (2, 21) | 16.36 | 3.32% |
+| 1 | 4 | (0, 13) | 18.24 | 15.10% |
+| 1 | 8 | (0, 14) | 19.44 | 14.10% |
+| 1 | 16 | (2, 15) | 20.37 | 4.70% |
+| 2 | 4 | (0, 9) | 22.02 | 20.77% |
+| 2 | 8 | (0, 10) | 23.67 | 19.01% |
 | 2 | 16 | (1, 11) | 25.81 | 11.61% |
 
