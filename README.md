@@ -127,7 +127,7 @@ Higher shortage cost moves the trigger upward; higher holding cost favours a low
 | Complete academic discussion | [report/final_report.md](report/final_report.md) and `report/final_report.pdf` |
 | Mathematical derivation | [docs/mathematical_appendix.md](docs/mathematical_appendix.md) |
 | Executable analysis | [notebooks/supply_chain_inventory_optimization.ipynb](notebooks/supply_chain_inventory_optimization.ipynb) |
-| Regression tests | [tests/test_inventory_model.py](tests/test_inventory_model.py), [tests/test_report_builder.py](tests/test_report_builder.py), and [tests/test_verify_artifacts.py](tests/test_verify_artifacts.py) |
+| Regression tests | [tests/test_inventory_model.py](tests/test_inventory_model.py), [tests/test_notebook_builder.py](tests/test_notebook_builder.py), [tests/test_report_builder.py](tests/test_report_builder.py), and [tests/test_verify_artifacts.py](tests/test_verify_artifacts.py) |
 | Responsible AI record | [docs/ai_workflow.md](docs/ai_workflow.md) |
 
 ## Repository Structure

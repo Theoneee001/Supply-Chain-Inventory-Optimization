@@ -8,7 +8,7 @@
 
 ## CV Version B: Programming and Digital Transformation
 
-- Developed a reproducible Python decision-support workflow with modular data classes, exhaustive policy search, two forms of sensitivity analysis, Pareto filtering, 20 regression tests, an executed Jupyter Notebook, and GitHub Actions CI.
+- Developed a reproducible Python decision-support workflow with modular data classes, exhaustive policy search, two forms of sensitivity analysis, Pareto filtering, 22 regression tests, an executed Jupyter Notebook, and GitHub Actions CI.
 - Converted an informal replenishment rule into auditable CSV, JSON, SVG, Markdown, and PDF outputs, including six vector figures, pinned dependencies, responsible AI documentation, and file-level evidence for every published result.
 
 ## Personal Statement Material (180 words)
@@ -31,7 +31,7 @@ The unconstrained baseline minimum is `(1, 12)`, with a daily cost of `19.66` an
 
 Finally, I changed the demand distribution while holding costs fixed. The cost optimum remained stable, but service did not. Steady and volatile demand both averaged three units per day, yet the cost-optimal fill rate fell from `96.01%` to `92.18%`. To meet the same illustrative 97% target, the reorder point had to rise from `2` under baseline demand to `3` under volatile demand and `4` during a promotion peak. This is a practical example of why variance matters, not only the mean.
 
-AI helped me review code, spot inconsistencies, refine explanations, and inspect figures, but I did not treat it as mathematical evidence. Every published number comes from generated outputs, and the repository includes 20 tests, an executed notebook, a formal report, and CI. The main lesson for me was that good analytics does not merely produce a minimum. It makes the assumptions, validation, and cost of alternative decisions visible.
+AI helped me review code, spot inconsistencies, refine explanations, and inspect figures, but I did not treat it as mathematical evidence. Every published number comes from generated outputs, and the repository includes 22 tests, an executed notebook, a formal report, and CI. The main lesson for me was that good analytics does not merely produce a minimum. It makes the assumptions, validation, and cost of alternative decisions visible.
 
 ## GitHub or LinkedIn Project Summary
 
@@ -45,6 +45,6 @@ Built a reproducible stochastic inventory optimisation project for a category-ne
 | Four demand distributions and 180 combinations | `outputs/demand_scenario_policy_evaluation.csv` |
 | Stationary and simulated values agree | `outputs/service_level_policy_summary.csv` and regression tests |
 | 97% service constraint | `src/inventory_model.py` and `outputs/service_level_policy_summary.csv` |
-| 20 regression tests | `tests/test_inventory_model.py`, `tests/test_report_builder.py`, and `tests/test_verify_artifacts.py` |
+| 22 regression tests | `tests/test_inventory_model.py`, `tests/test_notebook_builder.py`, `tests/test_report_builder.py`, and `tests/test_verify_artifacts.py` |
 | Responsible AI use | `docs/ai_workflow.md` |
 | Mathematical depth | `docs/mathematical_appendix.md` |

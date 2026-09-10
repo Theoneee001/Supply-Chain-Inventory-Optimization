@@ -11,6 +11,8 @@ from nbclient import NotebookClient
 
 ROOT = Path(__file__).resolve().parents[1]
 NOTEBOOK_PATH = ROOT / "notebooks" / "supply_chain_inventory_optimization.ipynb"
+NOTEBOOK_PYTHON_VERSION = "3.12"
+STATIONARY_RESIDUAL_PREFIX = "Stationary residual ||pi P - pi||_inf: "
 
 
 def markdown(source: str) -> nbformat.NotebookNode:
@@ -19,6 +21,24 @@ def markdown(source: str) -> nbformat.NotebookNode:
 
 def code(source: str) -> nbformat.NotebookNode:
     return nbformat.v4.new_code_cell(dedent(source).strip())
+
+
+def stabilise_notebook(notebook: nbformat.NotebookNode) -> None:
+    """Remove runtime-specific noise from the published notebook."""
+    notebook.metadata.setdefault("language_info", {})["version"] = NOTEBOOK_PYTHON_VERSION
+    for cell in notebook.cells:
+        cell.metadata.pop("execution", None)
+        for output in cell.get("outputs", []):
+            if output.get("output_type") != "stream":
+                continue
+            lines = []
+            for line in str(output.get("text", "")).splitlines(keepends=True):
+                if line.startswith(STATIONARY_RESIDUAL_PREFIX):
+                    suffix = "\n" if line.endswith("\n") else ""
+                    value = float(line[len(STATIONARY_RESIDUAL_PREFIX) :].strip())
+                    line = f"{STATIONARY_RESIDUAL_PREFIX}{value:.2e}{suffix}"
+                lines.append(line)
+            output["text"] = "".join(lines)
 
 
 def build_notebook() -> nbformat.NotebookNode:
@@ -318,7 +338,10 @@ def build_notebook() -> nbformat.NotebookNode:
         "language": "python",
         "name": "python3",
     }
-    notebook.metadata["language_info"] = {"name": "python", "version": "3.12"}
+    notebook.metadata["language_info"] = {
+        "name": "python",
+        "version": NOTEBOOK_PYTHON_VERSION,
+    }
     return notebook
 
 
@@ -331,8 +354,7 @@ def main() -> None:
         resources={"metadata": {"path": str(ROOT)}},
     )
     client.execute()
-    for cell in notebook.cells:
-        cell.metadata.pop("execution", None)
+    stabilise_notebook(notebook)
     nbformat.write(notebook, NOTEBOOK_PATH)
     print(f"Executed notebook written to {NOTEBOOK_PATH}")
 
